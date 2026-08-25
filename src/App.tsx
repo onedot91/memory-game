@@ -1129,35 +1129,6 @@ export default function App() {
 
         </main>
 
-        {/* FOOTER SHORTCUTS TICKER */}
-        <footer className="pt-3 border-t-2 border-[#231a38] flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-[#786699]">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="flex items-center gap-1.5">
-              <kbd className="bg-[#231a38] border border-[#000000] px-1.5 py-0.5 text-white rounded text-[10px] shadow-[1px_1px_0px_#000000]">Enter</kbd>
-              <span>제출</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <kbd className="bg-[#231a38] border border-[#000000] px-1.5 py-0.5 text-white rounded text-[10px] shadow-[1px_1px_0px_#000000]">Tab</kbd>
-              <span>다음 빈칸</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <kbd className="bg-[#231a38] border border-[#000000] px-1.5 py-0.5 text-white rounded text-[10px] shadow-[1px_1px_0px_#000000]">ESC</kbd>
-              <span>전체 초기화</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <kbd className="bg-[#231a38] border border-[#000000] px-1.5 py-0.5 text-white rounded text-[10px] shadow-[1px_1px_0px_#000000]">Alt+Q / W</kbd>
-              <span>주제 전환</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <kbd className="bg-[#231a38] border border-[#000000] px-1.5 py-0.5 text-white rounded text-[10px] shadow-[1px_1px_0px_#000000]">Alt+1~6</kbd>
-              <span>카테고리</span>
-            </span>
-          </div>
-          <div className="text-[11px] font-bold text-[#a594c7]">
-            2회 연속 오답 시 정답 공개 & 자동 진행
-          </div>
-        </footer>
-
       </div>
     </div>
   );

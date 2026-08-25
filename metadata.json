@@ -1,0 +1,6 @@
+{
+  "name": "RETRO CLOZE // Arcade Speed Memorizer",
+  "description": "Retro dark-mode arcade cloze memorization trainer with Web Audio sound synthesis, speedrun timers, combo streaks, and instant keyboard controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

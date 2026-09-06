@@ -244,6 +244,9 @@ export function normalizeAnswer(text: string): string {
  * Fulfills: "채점 시 이모지 없어도 정답 인정"
  */
 export function isMatch(input: string, targetName: string, aliases?: string[]): boolean {
+  const trimmedInput = input.trim();
+  if (trimmedInput && aliases?.some(alias => alias.trim() === trimmedInput)) return true;
+
   const normInput = normalizeAnswer(input);
   if (!normInput) return false;
 

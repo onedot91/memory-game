@@ -30,7 +30,9 @@ export default function DungeonStudy({ run, value, busy, paused, onChange, onSub
   useLayoutEffect(() => { setPage(activePage); }, [activePage, run.questionId]);
   useEffect(() => { if (!paused) input.current?.focus({ preventScroll: true }); }, [run.questionId, run.phase, paused, page]);
   return <section className="dungeon-study" aria-label="암기 문제">
-    <div className="study-heading"><h2>{items[0]?.category}</h2><span>{completed.size} / {items.length}</span></div>
+    <div className="study-heading"><h2>{items[0]?.category}</h2><div className="study-heading-actions"><span className="study-count">{completed.size} / {items.length}</span>
+      {!items[0]?.timeline && pages > 1 && <nav className="study-pagination" aria-label="문제 페이지"><button aria-label="이전 문제 페이지" disabled={page === 0} onClick={() => setPage(page - 1)}><ArrowLeft size={14} /></button><span>{page + 1} / {pages}</span>{page !== activePage && <button onClick={() => setPage(activePage)}>현재 문제</button>}<button aria-label="다음 문제 페이지" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}><ArrowRight size={14} /></button></nav>}
+    </div></div>
     <div className="study-progress" aria-label={`${items.length}문항 중 ${completed.size}문항 완료`}><i style={{ width: `${completed.size / items.length * 100}%` }} /></div>
     {items[0]?.timeline ? <TimelineStudy items={items} statuses={items.map(item => run.answers[item.id])} attempts={items.map(item => run.attemptsById[item.id] || 0)} activeIndex={active} busy={busy} paused={paused} onPick={index => onPick(items[index].id)} onSubmit={onSubmitTimeline} onComposition={onComposition} /> : <>
     <div className="study-slot-grid">{items.slice(page * 8, page * 8 + 8).map(item => {
@@ -49,7 +51,6 @@ export default function DungeonStudy({ run, value, busy, paused, onChange, onSub
         }} /><button aria-label="정답 제출" disabled={busy || paused || !value.trim()} type="submit"><ArrowRight size={16} /></button></form> : <><button type="button" className="slot-answer" disabled={revealed || busy || paused || !['question', 'recovery', 'reward', 'route', 'rest'].includes(run.phase)} onClick={() => onPick(item.id)} aria-label={`${item.number}번 문제${revealed ? ' 완료' : ' 선택'}`}>{revealed ? item.name : '· · · ·'}</button>{revealed && (failed ? <X size={16} aria-label="정답 공개" /> : <Check size={16} aria-label="정답" />)}</>}
       </div>;
     })}</div>
-    {pages > 1 && <nav className="study-pagination" aria-label="문제 페이지"><button aria-label="이전 문제 페이지" disabled={page === 0} onClick={() => setPage(page - 1)}><ArrowLeft size={14} /></button><span>{page + 1} / {pages}</span>{page !== activePage && <button onClick={() => setPage(activePage)}>현재 문제</button>}<button aria-label="다음 문제 페이지" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}><ArrowRight size={14} /></button></nav>}
     </>}
   </section>;
 }

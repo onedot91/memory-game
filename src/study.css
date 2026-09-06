@@ -105,15 +105,27 @@ body { background: var(--study-bg); }
 .study-edit-notice button { flex-shrink: 0; }
 
 .learning-main { flex: 1; min-height: 0; width: 100%; max-width: 1760px; margin: 0 auto; padding: 20px 24px; }
-.learning-layout { display: grid; grid-template-columns: minmax(0,1fr) clamp(240px,18vw,280px); align-items: start; gap: 24px; height: 100%; }
+.learning-layout { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto; grid-template-areas: 'game' 'study'; gap: 16px; height: 100%; }
 .learning-column, .learning-answers, .dungeon-study { min-width: 0; }
-.learning-game { min-width: 0; padding-top: 3px; }
+.learning-column { grid-area: study; }
+.study-heading-actions { display: flex; align-items: center; gap: 24px; }
+.study-app .study-heading-actions .study-pagination { margin: 0; }
+.learning-game { grid-area: game; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0,640px) minmax(340px,440px); justify-content: center; align-items: center; gap: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--study-border); }
+.battle-stage { display: flex; justify-content: center; align-items: center; height: 100%; min-width: 0; min-height: 0; }
+.battle-details { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-areas: 'heading hud' 'path loadout' 'reward loadout' 'notice loadout'; align-items: start; gap: 8px 20px; min-width: 0; }
+.battle-details .mini-game-heading { grid-area: heading; margin: 0; min-height: 24px; }
+.learning-game .battle-details .battle-hud { grid-area: hud; padding: 0; min-height: 24px; }
+.learning-game .battle-details .room-track { grid-area: path; margin: 0; }
+.battle-details .mini-loadout { grid-area: loadout; border: 0; padding: 0; }
+.battle-details .auto-reward-notice { grid-area: reward; margin: 0!important; }
+.study-app .battle-details .battle-notice { grid-area: notice; display: block; margin: 0!important; min-height: 18px; }
 .mini-game-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; color: var(--study-muted); }
 .mini-game-heading h2 { font-size: 14px; font-weight: 600; }
 .mini-game-heading>span { font: 12px var(--study-mono); }
 .learning-game .arena-frame { width: 100%; height: auto; aspect-ratio: 16/9; min-height: 0; flex: none; border: 1px solid var(--study-border); border-radius: 6px; box-shadow: none; }
 .learning-game .arena-canvas { height: 100%; aspect-ratio: 16/9; flex: none; }
 .learning-game .arena-loading { font-size: 12px; padding: 8px; }
+.battle-stage .arena-frame { width: auto; height: 100%; max-height: 360px; max-width: 100%; }
 .learning-game .battle-hud { padding: 12px 0; border: 0; background: transparent; gap: 6px; }
 .learning-game .health-block { gap: 6px; color: var(--study-reveal); }
 .learning-game .health-block b, .learning-game .shield-count, .learning-game .streak-badge { font: 12px var(--study-mono); }
@@ -160,7 +172,15 @@ body { background: var(--study-bg); }
 @media (max-width: 1150px) {
   .study-header { width: calc(100% - 32px); }
   .study-app .classic-container, .learning-main { padding-left: 16px; padding-right: 16px; }
-  .learning-layout { gap: 16px; grid-template-columns: minmax(0,1fr) 240px; }
+  .learning-game { gap: 20px; grid-template-columns: minmax(0,640px) 400px; }
+}
+@media (min-width: 851px) and (max-height: 799px) {
+  .learning-layout:has(.timeline-study) { grid-template-columns: minmax(0,1fr) clamp(240px,calc(100vw - 960px),360px); grid-template-rows: minmax(0,1fr); grid-template-areas: 'study game'; gap: 24px; }
+  .learning-layout:has(.timeline-study) .learning-game { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 0; border: 0; }
+  .learning-layout:has(.timeline-study) .battle-stage { height: auto; flex: none; }
+  .learning-layout:has(.timeline-study) .arena-frame { width: 100%; height: auto; }
+  .learning-layout:has(.timeline-study) .battle-details { display: flex; flex-direction: column; gap: 12px; }
+  .learning-layout:has(.timeline-study) .battle-details>* { width: 100%; }
 }
 @media (max-width: 960px) { .study-header-actions button>span { display: none; } }
 @media (max-width: 850px) {
@@ -176,7 +196,12 @@ body { background: var(--study-bg); }
   .study-topic-tabs button { padding: 7px 6px; font-size: 13px; }
   .study-category-tabs { gap: 4px; }
   .study-category-tabs button { padding: 5px 6px; }
-  .learning-layout { grid-template-columns: minmax(0,1fr) 180px; gap: 12px; }
+  .learning-layout { grid-template-rows: auto auto; gap: 12px; height: auto; }
+  .learning-game { grid-template-columns: minmax(0,1fr); }
+  .battle-stage { height: auto; }
+  .battle-stage .arena-frame { width: 100%; height: auto; }
+  .battle-details { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .study-heading-actions { gap: 12px; }
   .study-edit-notice { align-items: flex-start; }
 }
 @media (max-width: 420px) {

@@ -105,7 +105,7 @@ body { background: var(--study-bg); }
 .study-edit-notice button { flex-shrink: 0; }
 
 .learning-main { flex: 1; min-height: 0; width: 100%; max-width: 1760px; margin: 0 auto; padding: 20px 24px; }
-.learning-layout { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,1fr) auto; grid-template-areas: 'game' 'study'; gap: 16px; height: 100%; }
+.learning-layout { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(0,240px) auto; grid-template-areas: 'game' 'study'; align-content: start; gap: 16px; height: 100%; }
 .learning-column, .learning-answers, .dungeon-study { min-width: 0; }
 .learning-column { grid-area: study; }
 .study-heading-actions { display: flex; align-items: center; gap: 24px; }

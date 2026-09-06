@@ -110,22 +110,26 @@ body { background: var(--study-bg); }
 .learning-column { grid-area: study; }
 .study-heading-actions { display: flex; align-items: center; gap: 24px; }
 .study-app .study-heading-actions .study-pagination { margin: 0; }
-.learning-game { grid-area: game; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0,640px) minmax(340px,440px); justify-content: center; align-items: center; gap: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--study-border); }
-.battle-stage { display: flex; justify-content: center; align-items: center; height: 100%; min-width: 0; min-height: 0; }
-.battle-details { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-areas: 'heading hud' 'path loadout' 'reward loadout' 'notice loadout'; align-items: start; gap: 8px 20px; min-width: 0; }
-.battle-details .mini-game-heading { grid-area: heading; margin: 0; min-height: 24px; }
-.learning-game .battle-details .battle-hud { grid-area: hud; padding: 0; min-height: 24px; }
-.learning-game .battle-details .room-track { grid-area: path; margin: 0; }
-.battle-details .mini-loadout { grid-area: loadout; border: 0; padding: 0; }
-.battle-details .auto-reward-notice { grid-area: reward; margin: 0!important; }
-.study-app .battle-details .battle-notice { grid-area: notice; display: block; margin: 0!important; min-height: 18px; }
+/* The scene owns its pixel scale; the page only allocates the stage. */
+.learning-game { grid-area: game; min-width: 0; min-height: 0; display: grid; grid-template-rows: 28px minmax(0,1fr) 32px; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--study-border); }
+.battle-topline { display: flex; align-items: center; gap: 24px; min-width: 0; }
+.battle-topline .mini-game-heading { min-width: 180px; margin: 0; }
+.learning-game .battle-topline .battle-hud { padding: 0; gap: 20px; }
+.learning-game .battle-topline .room-track { width: 204px; margin: 0 0 0 auto; }
+.battle-stage { min-width: 0; min-height: 0; }
+.battle-footer { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.battle-footer .mini-loadout { display: flex; align-items: center; gap: 16px; border: 0; padding: 0; min-width: 0; }
+.battle-footer .loadout-weapon { flex-shrink: 0; }
+.battle-footer .equipped-relics { flex-wrap: nowrap; gap: 4px; margin: 0; }
+.battle-messages { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex: 1; min-width: 0; height: 22px; }
+.battle-messages .auto-reward-notice { margin: 0!important; }
+.study-app .battle-messages .battle-notice { flex-shrink: 0; margin: 0!important; white-space: nowrap; }
 .mini-game-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; color: var(--study-muted); }
 .mini-game-heading h2 { font-size: 14px; font-weight: 600; }
 .mini-game-heading>span { font: 12px var(--study-mono); }
-.learning-game .arena-frame { width: 100%; height: auto; aspect-ratio: 16/9; min-height: 0; flex: none; border: 1px solid var(--study-border); border-radius: 6px; box-shadow: none; }
-.learning-game .arena-canvas { height: 100%; aspect-ratio: 16/9; flex: none; }
+.learning-game .arena-frame { width: 100%; height: 100%; aspect-ratio: auto; min-height: 0; flex: none; border: 1px solid var(--study-border); border-radius: 6px; box-shadow: none; }
+.learning-game .arena-canvas { width: 100%; height: 100%; aspect-ratio: auto; flex: none; }
 .learning-game .arena-loading { font-size: 12px; padding: 8px; }
-.battle-stage .arena-frame { width: auto; height: 100%; max-height: 360px; max-width: 100%; }
 .learning-game .battle-hud { padding: 12px 0; border: 0; background: transparent; gap: 6px; }
 .learning-game .health-block { gap: 6px; color: var(--study-reveal); }
 .learning-game .health-block b, .learning-game .shield-count, .learning-game .streak-badge { font: 12px var(--study-mono); }
@@ -138,7 +142,7 @@ body { background: var(--study-bg); }
 .mini-loadout .loadout-weapon { gap: 8px; }
 .mini-loadout .loadout-weapon b { color: var(--study-muted); font-size: 14px; font-weight: 500; }
 .mini-loadout .loadout-weapon .pixel-art { width: 32px; height: 32px; }
-.mini-loadout .equipped-relics { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin-top: 10px; }
+.mini-loadout .equipped-relics { display: flex; border: 0; padding: 0; }
 .mini-loadout .equipped-relics .pixel-art { width: 25px; height: 25px; }
 .mini-loadout .equipped-relics:empty { display: none; }
 .auto-reward-notice { height: 20px; line-height: 20px; font-size: 12px; color: var(--study-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 10px!important; }
@@ -172,15 +176,23 @@ body { background: var(--study-bg); }
 @media (max-width: 1150px) {
   .study-header { width: calc(100% - 32px); }
   .study-app .classic-container, .learning-main { padding-left: 16px; padding-right: 16px; }
-  .learning-game { gap: 20px; grid-template-columns: minmax(0,640px) 400px; }
 }
 @media (min-width: 851px) and (max-height: 799px) {
   .learning-layout:has(.timeline-study) { grid-template-columns: minmax(0,1fr) clamp(240px,calc(100vw - 960px),360px); grid-template-rows: minmax(0,1fr); grid-template-areas: 'study game'; gap: 24px; }
-  .learning-layout:has(.timeline-study) .learning-game { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 0; border: 0; }
-  .learning-layout:has(.timeline-study) .battle-stage { height: auto; flex: none; }
-  .learning-layout:has(.timeline-study) .arena-frame { width: 100%; height: auto; }
-  .learning-layout:has(.timeline-study) .battle-details { display: flex; flex-direction: column; gap: 12px; }
-  .learning-layout:has(.timeline-study) .battle-details>* { width: 100%; }
+  .learning-layout:has(.timeline-study) .learning-game { display: flex; flex-direction: column; gap: 12px; padding: 0; border: 0; }
+  .learning-layout:has(.timeline-study) .battle-topline { flex-wrap: wrap; gap: 8px; }
+  .learning-layout:has(.timeline-study) .mini-game-heading { width: 100%; }
+  .learning-layout:has(.timeline-study) .battle-topline .room-track { width: 100%; }
+  .learning-layout:has(.timeline-study) .battle-stage { height: 240px; flex: none; }
+  .learning-layout:has(.timeline-study) .battle-footer, .learning-layout:has(.timeline-study) .mini-loadout { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .learning-layout:has(.timeline-study) .equipped-relics { flex-wrap: wrap; }
+  .learning-layout:has(.timeline-study) .battle-messages { flex: none; width: 100%; justify-content: flex-start; height: 40px; flex-direction: column; align-items: flex-start; gap: 0; }
+}
+@media (min-width: 851px) and (min-height: 800px) {
+  .learning-layout:has(.timeline-study) .learning-game { grid-template-rows: 24px minmax(0,1fr) 24px; gap: 4px; padding-bottom: 4px; }
+  .learning-layout:has(.timeline-study) .room-track>div { height: 24px; }
+  .learning-layout:has(.timeline-study) .loadout-weapon .pixel-art { width: 24px; height: 24px; }
+  .learning-layout:has(.timeline-study) .equipped-relics .pixel-art { width: 20px; height: 20px; }
 }
 @media (max-width: 960px) { .study-header-actions button>span { display: none; } }
 @media (max-width: 850px) {
@@ -197,10 +209,10 @@ body { background: var(--study-bg); }
   .study-category-tabs { gap: 4px; }
   .study-category-tabs button { padding: 5px 6px; }
   .learning-layout { grid-template-rows: auto auto; gap: 12px; height: auto; }
-  .learning-game { grid-template-columns: minmax(0,1fr); }
-  .battle-stage { height: auto; }
-  .battle-stage .arena-frame { width: 100%; height: auto; }
-  .battle-details { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .learning-game { grid-template-rows: auto 180px auto; }
+  .battle-topline, .battle-footer, .battle-footer .mini-loadout { flex-wrap: wrap; gap: 8px; }
+  .battle-footer .equipped-relics { flex-wrap: wrap; }
+  .battle-messages { flex-basis: 100%; justify-content: flex-start; }
   .study-heading-actions { gap: 12px; }
   .study-edit-notice { align-items: flex-start; }
 }

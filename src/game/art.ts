@@ -111,46 +111,55 @@ function gear(ctx: CanvasRenderingContext2D, x: number, y: number, p: typeof PAL
 function crystal(ctx: CanvasRenderingContext2D, x: number, y: number, p: typeof PALETTES[number]) {
   matrix(ctx, ['...f....','..fff...','..fhf...','.ffhff..','.ffhff..','ffhhfff.','ffhhffff','.fffffff','..fffff.'], { f: p.edge, h: p.light }, x, y, 3);
 }
-export function roomCanvas(theme: number, layout: number): HTMLCanvasElement {
-  const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 360;
+export function roomCanvas(theme: number, layout: number, width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext('2d')!; const p = PALETTES[theme];
-  rect(ctx, '#0b0815', 0, 0, 640, 360);
-  for (let y = 48; y < 344; y += 16) for (let x = 16; x < 624; x += 16) {
+  ctx.imageSmoothingEnabled = false;
+  rect(ctx, '#0b0815', 0, 0, width, height);
+  for (let y = 28; y < height - 6; y += 16) for (let x = 8; x < width - 8; x += 16) {
     const n = (x * 31 + y * 73 + layout * 37) % 17;
     rect(ctx, n > 7 ? p.floor : p.tile, x, y, 16, 16);
     rect(ctx, p.line, x, y, 15, 1);
-    rect(ctx, '#ffffff06', x + 2, y + 2, 12, 1);
-    if (n < 3) { rect(ctx, p.line, x + 4, y + 7, 4, 1); rect(ctx, p.line, x + 7, y + 8, 1, 3); }
+    if (n < 3) rect(ctx, p.line, x + 4, y + 7, 4, 1);
   }
-  // Four deliberately composed room plans with navigable foreground space.
-  const rug = layout === 0 ? [96, 164, 432, 144] : layout === 1 ? [250, 92, 144, 230] : layout === 2 ? [64, 176, 512, 100] : [120, 144, 400, 172];
-  rect(ctx, theme === 0 ? '#572645' : theme === 1 ? '#4f2830' : '#39294f', ...rug as [number, number, number, number]);
-  rect(ctx, p.accent, rug[0], rug[1], rug[2], 2); rect(ctx, p.accent, rug[0], rug[1] + rug[3] - 2, rug[2], 2);
-  for (let x = rug[0] + 6; x < rug[0] + rug[2]; x += 8) { rect(ctx, '#c5a474', x, rug[1] + 5, 2, 2); rect(ctx, '#c5a474', x, rug[1] + rug[3] - 7, 2, 2); }
-  if (theme === 2) for (let i = 0; i < 45; i++) rect(ctx, '#8968c533', 38 + (i * 137) % 560, 108 + (i * 43) % 210, 12, 1);
-  for (let x = 16; x < 624; x += 32) { rect(ctx, p.wall, x, 20, 30, 40); rect(ctx, p.edge, x, 20, 30, 3); rect(ctx, '#0d0b1d', x, 57, 30, 6); rect(ctx, '#ffffff0d', x + 3, 26, 24, 2); }
-  for (const x of [16, 602]) { rect(ctx, p.wall, x, 20, 22, 316); rect(ctx, p.edge, x + 2, 20, 2, 316); rect(ctx, '#080713', x + 19, 60, 4, 276); }
-  for (const x of [64, 142, 452, 534]) {
-    if (theme === 0) shelf(ctx, x, 42 + (layout % 2) * 10, theme);
-    if (theme === 1) { gear(ctx, x + 6, 42, p); rect(ctx, '#aa7863', x + 17, 70, 4, 42); }
-    if (theme === 2) crystal(ctx, x + 8, 42, p);
+  const left = Math.round(width * 0.1), right = Math.round(width * 0.9);
+  const top = 48, bottom = height - 14;
+  const carpet = theme === 0 ? '#48243c' : theme === 1 ? '#42272b' : '#332640';
+  const rugs = layout === 0 ? [[left, top, right - left, bottom - top]]
+    : layout === 1 ? [[left, top, width * 0.32, bottom - top], [width * 0.48, top, width * 0.42, bottom - top]]
+    : layout === 2 ? [[left, top + 12, right - left, bottom - top - 24]]
+    : [[left, top, width * 0.34, bottom - top - 14], [width * 0.44, top + 14, width * 0.46, bottom - top - 14]];
+  for (const [x, y, w, h] of rugs) {
+    rect(ctx, carpet, x, y, w, h);
+    rect(ctx, p.accent, x, y, w, 1); rect(ctx, p.accent, x, y + h - 1, w, 1);
+    for (let i = x + 5; i < x + w - 4; i += 10) {
+      rect(ctx, '#a48b67', i, y + 4, 2, 1); rect(ctx, '#a48b67', i, y + h - 5, 2, 1);
+    }
   }
-  const columns = layout === 0 ? [[68, 130], [550, 130], [68, 268], [550, 268]] : layout === 1 ? [[170, 150], [450, 150], [170, 280], [450, 280]] : layout === 2 ? [[95, 115], [525, 115]] : [[270, 112], [360, 112], [76, 264], [544, 264]];
-  for (const [x, y] of columns) {
-    rect(ctx, '#0a081755', x - 6, y + 26, 40, 9);
-    rect(ctx, p.edge, x, y, 26, 5); rect(ctx, p.wall, x + 3, y + 5, 20, 23); rect(ctx, p.dim, x + 7, y + 6, 4, 21); rect(ctx, p.edge, x - 2, y + 26, 30, 6);
+  for (let x = 8; x < width - 8; x += 32) {
+    rect(ctx, p.wall, x, 4, 30, 25); rect(ctx, p.edge, x, 4, 30, 2);
+    rect(ctx, '#0d0b1d', x, 27, 30, 5); rect(ctx, '#ffffff0d', x + 3, 10, 24, 1);
   }
-  // Portal, carved lintel and checkerboard entry are actual map decorations.
-  rect(ctx, '#0c0918', 280, 18, 80, 70); rect(ctx, p.edge, 275, 14, 90, 6);
-  rect(ctx, p.light, 282, 28, 3, 54); rect(ctx, p.light, 355, 28, 3, 54);
-  for (let i = 0; i < 5; i++) rect(ctx, p.dim, 288 + i * 13, 26, 5, 50);
-  rect(ctx, p.light, 285, 82, 70, 2);
-  for (let y = 324; y < 344; y += 8) for (let x = 280; x < 360; x += 8) rect(ctx, ((x + y) / 8) % 2 ? p.light : '#141021', x, y, 8, 8);
-  for (let i = 0; i < 17; i++) {
-    const x = 50 + (i * 131 + layout * 41) % 530; const y = 100 + (i * 71) % 206;
-    if (theme === 0) { rect(ctx, '#110d19', x, y, 8, 5); rect(ctx, i % 2 ? p.dim : '#af716b', x, y - 1, 7, 4); rect(ctx, '#e3caa3', x + 1, y, 5, 1); }
-    if (theme === 1) { rect(ctx, p.edge, x, y, 5, 4); rect(ctx, p.floor, x + 1, y + 1, 3, 2); }
-    if (theme === 2) { rect(ctx, p.light, x, y, 2, 2); rect(ctx, p.edge, x - 1, y + 2, 4, 2); }
+  for (const x of [4, width - 10]) { rect(ctx, p.wall, x, 4, 6, height - 8); rect(ctx, p.edge, x, 4, 1, height - 8); }
+  rect(ctx, p.wall, 8, height - 6, width - 16, 3);
+  const spacing = width < 480 ? width / 3 : 160;
+  for (let x = spacing / 2; x < width - 24; x += spacing) {
+    ctx.save(); ctx.translate(Math.round(x), 9); ctx.scale(0.5, 0.5);
+    if (theme === 0) shelf(ctx, 0, 0, theme);
+    if (theme === 1) gear(ctx, 0, 0, p);
+    if (theme === 2) crystal(ctx, 0, 0, p);
+    ctx.restore();
+  }
+  const doorX = Math.round(width / 2 - 22);
+  rect(ctx, '#0c0918', doorX, 3, 44, 31); rect(ctx, p.edge, doorX - 3, 1, 50, 3);
+  for (let x = doorX + 5; x < doorX + 40; x += 8) rect(ctx, p.dim, x, 6, 3, 25);
+  rect(ctx, p.light, doorX + 2, 6, 2, 26); rect(ctx, p.light, doorX + 40, 6, 2, 26);
+  rect(ctx, p.light, doorX + 2, 32, 40, 1);
+  for (let i = 0; i < Math.floor(width / 90); i++) {
+    const x = 18 + (i * 131 + layout * 41) % Math.max(1, width - 36);
+    const y = 36 + (i * 71) % Math.max(1, height - 48);
+    rect(ctx, theme === 2 ? p.edge : p.dim, x, y, theme === 2 ? 2 : 5, 2);
+    if (theme === 0) rect(ctx, '#ac8b1b', x + 1, y, 3, 1);
   }
   return canvas;
 }

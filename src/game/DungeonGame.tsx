@@ -172,16 +172,19 @@ export default function DungeonGame({ onModeChange }: StudyModeProps) {
           </section>}
         </div>
         <aside className="learning-game" aria-label="학습 보조 전투">
-          <div className="battle-stage"><Arena run={displayedRun} roomNumber={Math.max(0, roomSteps.indexOf(displayedRun.room)) + 1} paused={stopped} motion={profile.settings.motion} /></div>
-          <div className="battle-details">
+          <div className="battle-topline">
           <div className="mini-game-heading"><h2>{dungeon.title}</h2><span>{roomPosition + 1} / {roomSteps.length}</span></div>
           <div className="battle-hud"><div className="health-block"><Heart size={16} fill="currentColor" /><b aria-label={`체력 ${run.hp} / ${run.maxHp}`}>{run.hp}/{run.maxHp}</b><span className="shield-count"><Shield size={15} />{run.shield}</span></div><div className="streak-badge"><Zap size={14} />{run.streak}</div></div>
           <div className="room-track" aria-label={`${roomSteps.length}구간 중 ${roomPosition + 1}구간`}>{roomSteps.map((index, position) => <div className={`${index === run.room ? 'current' : index < run.room ? 'done' : ''}`} key={index} title={ROOM_NAMES[index]}>{index < run.room ? <Check size={13} /> : index === 5 ? <Trophy size={13} /> : position + 1}</div>)}</div>
+          </div>
+          <div className="battle-stage"><Arena run={displayedRun} roomNumber={Math.max(0, roomSteps.indexOf(displayedRun.room)) + 1} paused={stopped} motion={profile.settings.motion} /></div>
+          <div className="battle-footer">
           <div className="mini-loadout"><div className="loadout-weapon"><Pixel kind="weapon" index={WEAPONS.findIndex(arm => arm.id === run.weapon)} /><b>{weaponById(run.weapon).name}</b></div>
             <div className="equipped-relics">{Object.entries(run.relics).map(([id, count]) => { const index = RELICS.findIndex(relic => relic.id === id); return <span key={id} title={`${RELICS[index].name} ${count}단계: ${RELICS[index].description}`}><Pixel kind="relic" index={index} /><b>{count}</b><span className="sr-only">{RELICS[index].name} {count}단계</span></span>; })}</div>
           </div>
-          <p className="auto-reward-notice" role="status" title={rewardNotice}>{rewardNotice}</p>
+          <div className="battle-messages"><p className="auto-reward-notice" role="status" title={rewardNotice}>{rewardNotice}</p>
           <p className={`battle-notice notice-${run.lastResult?.outcome || 'idle'}`} role="status">{run.lastResult?.outcome === 'wrong' ? '1차 오답 · 다시 입력하세요.' : run.phase === 'recovery' ? '복습하며 회복 중' : ''}</p>
+          </div>
           </div>
         </aside>
       </div>

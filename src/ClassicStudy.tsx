@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import confetti from 'canvas-confetti';
 import { 
   TOPIC_GROUPS,
-  CIVIL_CATEGORIES,
-  NUMBER_CATEGORIES,
+  ALL_CATEGORIES,
   CategoryItem, 
   CategoryData,
-  isMatch 
+  isItemMatch,
+  hasStudyAnswer,
+  StudyAnswer
 } from './data';
 import { sound } from './audio';
+import TimelineStudy from './TimelineStudy';
 import { useActivity } from './game/useActivity';
 import { recordMetrics } from './game/storage';
 import { 
@@ -50,10 +52,9 @@ const TOPIC_STORAGE_KEY = 'retro_cloze_active_topic_v1';
 const FAILED_HISTORY_KEY = 'retro_cloze_failed_history_v1';
 
 export default function App() {
-  // Active Topic Group ('civil' | 'number')
-  const [selectedTopic, setSelectedTopic] = useState<'civil' | 'number'>(() => {
+  const [selectedTopic, setSelectedTopic] = useState<CategoryData['group']>(() => {
     const saved = localStorage.getItem(TOPIC_STORAGE_KEY);
-    return saved === 'number' ? 'number' : 'civil';
+    return TOPIC_GROUPS.find(topic => topic.id === saved)?.id || 'civil';
   });
 
   // Current category index within active topic
@@ -117,6 +118,7 @@ export default function App() {
   // Active Slot Index & Current Input value
   const [activeSlotIdx, setActiveSlotIdx] = useState<number>(0);
   const [slotInput, setSlotInput] = useState<string>('');
+  const [timelineResetVersion, setTimelineResetVersion] = useState(0);
   const [inputShake, setInputShake] = useState<boolean>(false);
   const [inputFlashGreen, setInputFlashGreen] = useState<boolean>(false);
   const [noticeMessage, setNoticeMessage] = useState<string>('');
@@ -136,7 +138,7 @@ export default function App() {
 
   // Categories list for current topic
   const currentTopicCategories = useMemo(() => {
-    return selectedTopic === 'civil' ? CIVIL_CATEGORIES : NUMBER_CATEGORIES;
+    return ALL_CATEGORIES.filter(category => category.group === selectedTopic);
   }, [selectedTopic]);
 
   // Ensure selectedCatIndex is valid
@@ -431,7 +433,7 @@ export default function App() {
   };
 
   // Submits the current active slot input
-  const handleSubmitActiveSlot = () => {
+  const handleSubmitActiveSlot = (answer: StudyAnswer = slotInput) => {
     if (composingInput.current) return;
     if (isEditOrderMode) return;
     if (slots.length === 0) return;
@@ -444,12 +446,12 @@ export default function App() {
       return;
     }
 
-    const cleanText = slotInput.trim();
+    if (typeof answer !== 'string' && !hasStudyAnswer(answer)) return;
     const itemName = currentSlot.item.name;
     recordMetrics('classic', { submissions: 1, retries: currentSlot.attempts > 0 ? 1 : 0 });
 
     // 1. Check if input matches active slot's answer (정답 맞힘)
-    if (cleanText && isMatch(cleanText, currentSlot.item.name, currentSlot.item.aliases)) {
+    if (hasStudyAnswer(answer) && isItemMatch(answer, currentSlot.item)) {
       recordMetrics('classic', { correct: 1 });
       sound.playStreakCorrect(streakCount);
       setStreakCount(prev => prev + 1);
@@ -594,6 +596,7 @@ export default function App() {
   // Full Reset for all categories across all topics
   const handleResetAll = useCallback(() => {
     cancelAutoAdvance();
+    setTimelineResetVersion(version => version + 1);
     sound.playReset();
 
     // Clear all categories saved progress
@@ -667,7 +670,7 @@ export default function App() {
         return;
       }
 
-      if (e.key === 'Tab' && !e.shiftKey && document.activeElement instanceof HTMLInputElement) {
+      if (e.key === 'Tab' && !e.shiftKey && document.activeElement instanceof HTMLInputElement && !document.activeElement.closest('.timeline-study')) {
         e.preventDefault();
         sound.playMechanicalKey();
         advanceToNextSlot();
@@ -687,7 +690,7 @@ export default function App() {
   const themeColor = themeColors[selectedCatIndex % themeColors.length];
 
   return (
-    <div className="classic-study min-h-screen bg-[#0b0716] text-[#e2d9f3] flex flex-col font-sans select-none overflow-x-hidden">
+    <div className={`classic-study ${currentCategoryData.group === 'history' ? 'classic-timeline' : ''} min-h-screen bg-[#0b0716] text-[#e2d9f3] flex flex-col font-sans select-none overflow-x-hidden`}>
       
       {/* Background Ambience Grid */}
       <div className="fixed inset-0 pointer-events-none opacity-20 bg-[linear-gradient(to_right,#2a1e47_1px,transparent_1px),linear-gradient(to_bottom,#2a1e47_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]" />
@@ -702,7 +705,7 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             
             {/* Topic Switcher Deck Tabs */}
-            <div className="flex items-center gap-1.5 p-1 bg-[#171126] border-2 border-[#2e214d] rounded-lg shadow-[3px_3px_0px_#000000]">
+            <div className="flex flex-wrap max-w-full items-center gap-1.5 p-1 bg-[#171126] border-2 border-[#2e214d] rounded-lg shadow-[3px_3px_0px_#000000]">
               {TOPIC_GROUPS.map(tg => {
                 const isActive = selectedTopic === tg.id;
                 return (
@@ -820,6 +823,7 @@ export default function App() {
                 </h2>
               </div>
 
+              {currentCategoryData.group === 'history' && noticeMessage && <span className="timeline-summary-notice" role="status" title={noticeMessage}>{noticeMessage}</span>}
               <div className="flex items-center gap-2">
                 {isCustomOrderActive && (
                   <button
@@ -873,6 +877,16 @@ export default function App() {
           )}
 
           {/* SEQUENTIAL KITSCH SLOTS GRID WITH CONDITIONAL DRAG & DROP */}
+          {currentCategoryData.group === 'history' && !isEditOrderMode ? <TimelineStudy
+            items={slots.map(slot => slot.item)}
+            statuses={slots.map(slot => slot.revealed ? slot.revealedBySurrender ? 'revealed' : 'correct' : undefined)}
+            attempts={slots.map(slot => slot.attempts)}
+            activeIndex={activeSlotIdx}
+            resetVersion={timelineResetVersion}
+            onPick={handleSlotClick}
+            onSubmit={handleSubmitActiveSlot}
+            onComposition={value => { composingInput.current = value; }}
+          /> : <>
           <div className="classic-slot-grid grid grid-cols-1 md:grid-cols-2 gap-4">
             {slots.slice(pageStart, pageStart + pageSize).map((slot, offset) => {
               const index = pageStart + offset;
@@ -916,7 +930,7 @@ export default function App() {
                     <div className="flex items-center gap-3 min-w-0">
                       <GripVertical className="w-4 h-4 text-[#ffe600] shrink-0" />
                       <span className="text-xs sm:text-sm font-black font-mono shrink-0 px-2 py-0.5 rounded border border-[#000000] bg-[#171126] text-[#ffe600] shadow-[1px_1px_0px_#000000]">
-                        {slot.item.num || String(index + 1).padStart(2, '0')}
+                        {slot.item.num || String(index + 1).padStart(2, '0')}{slot.item.era && ` · ${slot.item.era}`}
                       </span>
                       <span className="text-base sm:text-lg font-black tracking-tight text-white truncate">
                         {slot.item.name}
@@ -973,13 +987,13 @@ export default function App() {
                         <span className={`text-xs sm:text-sm font-black font-mono px-1.5 py-0.5 rounded border border-[#000000] shadow-[1px_1px_0px_#000000] ${
                           isSurrender ? 'bg-[#ff2a85]/30 text-[#ff2a85]' : 'bg-[#00ff66]/20 text-[#00ff66]'
                         }`}>
-                          {slot.item.num || String(index + 1).padStart(2, '0')}
+                          {slot.item.num || String(index + 1).padStart(2, '0')}{slot.item.era && ` · ${slot.item.era}`}
                         </span>
                       )}
                       
                       {isEditOrderMode && (
                         <span className="text-xs font-black font-mono text-[#ffe600]">
-                          [{slot.item.num || String(index + 1).padStart(2, '0')}]
+                          [{slot.item.num || String(index + 1).padStart(2, '0')}{slot.item.era && ` · ${slot.item.era}`}]
                         </span>
                       )}
 
@@ -1062,7 +1076,7 @@ export default function App() {
                           }`}
                           style={!hasPrevFail ? { color: themeColor } : undefined}
                         >
-                          {slot.item.num || String(index + 1).padStart(2, '0')}
+                          {slot.item.num || String(index + 1).padStart(2, '0')}{slot.item.era && ` · ${slot.item.era}`}
                         </span>
                         
                         <div 
@@ -1072,6 +1086,7 @@ export default function App() {
                         <input
                           ref={inputRef}
                           type="text"
+                          aria-label={`${currentCategoryData.category} ${slot.item.num || index + 1}번 ${slot.item.era ? '연도와 사건' : '정답'}`}
                           value={slotInput}
                           onCompositionStart={() => { composingInput.current = true; }}
                           onCompositionEnd={() => { composingInput.current = false; }}
@@ -1090,7 +1105,7 @@ export default function App() {
                           placeholder={
                             isFirstMistake 
                               ? "1회 오답! 다시 도전..." 
-                              : `[${slot.item.num || index + 1}] 낱말 입력 후 Enter...`
+                              : slot.item.era ? '연도 + 사건 입력…' : `[${slot.item.num || index + 1}] 낱말 입력 후 Enter...`
                           }
                           autoComplete="off"
                           autoCorrect="off"
@@ -1159,7 +1174,7 @@ export default function App() {
                         ? 'border-[#5e2448] bg-[#1d0e22] text-[#d47fae]'
                         : 'border-[#000000] bg-[#171126] text-[#a594c7]'
                     }`}>
-                      {slot.item.num || String(index + 1).padStart(2, '0')}
+                      {slot.item.num || String(index + 1).padStart(2, '0')}{slot.item.era && ` · ${slot.item.era}`}
                     </span>
                     <span className={`text-base font-mono tracking-widest select-none font-black ${
                       hasPrevFail ? 'text-[#6e395c]' : 'text-[#4a3966]'
@@ -1184,8 +1199,10 @@ export default function App() {
             <button aria-label="다음 문제 페이지" disabled={visiblePage + 1 >= pageCount} onClick={() => changeSlotPage(visiblePage + 1)} onDragEnter={() => isEditOrderMode && visiblePage + 1 < pageCount && changeSlotPage(visiblePage + 1)}>→</button>
           </nav>}
 
+          </>}
+
           {/* Dynamic Notice / Error Feedback Strip */}
-          {noticeMessage && (
+          {noticeMessage && currentCategoryData.group !== 'history' && (
             <div className="mt-4 p-3 bg-[#1d1430] border-2 border-[#ff2a85] rounded-xl text-center text-xs font-black text-white shadow-[3px_3px_0px_#ff2a85] animate-jelly-snap">
               {noticeMessage}
             </div>

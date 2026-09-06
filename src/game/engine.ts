@@ -1,4 +1,4 @@
-import { isMatch } from '../data';
+import { hasStudyAnswer, isItemMatch, type StudyAnswer } from '../data';
 import { BALANCE, CATEGORIES, DUNGEONS, ITEMS, RELICS, WEAPONS, dungeonById, itemById } from './content';
 import type { DungeonId, Enemy, Profile, RelicId, Run, WeaponId } from './types';
 
@@ -71,7 +71,7 @@ function enterRoom(profile: Profile, now: number) {
 export function startRun(profile: Profile, dungeon: DungeonId, categoryId: string, weapon: WeaponId, now = Date.now(), orderedIds?: string[]): Profile {
   const index = DUNGEONS.findIndex(item => item.id === dungeon);
   const arm = WEAPONS.find(item => item.id === weapon);
-  if (index < 0 || index > profile.unlockedDungeon || !arm || arm.unlock > profile.score || !CATEGORIES.some(item => item.id === categoryId)) return profile;
+  if (index < 0 || !arm || !CATEGORIES.some(item => item.id === categoryId)) return profile;
   const next = structuredClone(profile);
   const categoryItems = ITEMS.filter(item => item.categoryId === categoryId).map(item => item.id);
   const questionOrder = [...new Set([...(orderedIds || []).filter(id => categoryItems.includes(id)), ...categoryItems])];
@@ -187,8 +187,8 @@ function attack(run: Run) {
   if (run.weapon === 'wand' && run.charge % 3 === 0) run.shield = Math.min(12, run.shield + 1);
 }
 
-export function submitAnswer(profile: Profile, input: string, expectedSequence: number, now = Date.now()): Profile {
-  if (!profile.run || profile.run.sequence !== expectedSequence || !input.trim()) return profile;
+export function submitAnswer(profile: Profile, input: StudyAnswer, expectedSequence: number, now = Date.now()): Profile {
+  if (!profile.run || profile.run.sequence !== expectedSequence || !hasStudyAnswer(input)) return profile;
   let prepared = profile;
   // Optional rewards never interrupt the existing Enter-to-answer learning flow.
   for (let step = 0; step < 4; step++) {
@@ -205,7 +205,7 @@ export function submitAnswer(profile: Profile, input: string, expectedSequence: 
   const next = structuredClone(prepared);
   const run = next.run!;
   const recovery = run.phase === 'recovery';
-  const correct = isMatch(input, item.name, item.aliases);
+  const correct = isItemMatch(input, item);
   const review = Boolean(next.memories[item.id]?.due <= dayKey(now) || run.failed.includes(item.id));
   run.sequence++;
   run.answered++;

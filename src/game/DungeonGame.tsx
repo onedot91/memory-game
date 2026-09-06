@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Download, Heart, LockKeyhole, Pause, Play, Settings2, Shield, Trophy, X, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Download, Heart, Pause, Play, Settings2, Shield, Trophy, X, Zap } from 'lucide-react';
 import Arena from './Arena';
 import DungeonStudy from './DungeonStudy';
+import { hasStudyAnswer, type StudyAnswer } from '../data';
 import { roomCanvas, spriteCanvas } from './art';
 import { BALANCE, CATEGORIES, DUNGEONS, RELICS, ROOM_NAMES, WEAPONS, dungeonById, weaponById } from './content';
 import { acknowledgeReveal, chooseRoute, dayKey, leaveRest, roomPlan, selectQuestion, startRun, submitAnswer, takeRelic } from './engine';
@@ -20,13 +21,13 @@ function Pixel({ kind, index = 0, theme = 0, className = '' }: { kind: 'hero' | 
   }, [kind, index, theme]);
   return <canvas ref={canvas} className={`pixel-art ${className}`} aria-hidden="true" />;
 }
-function RoomPreview({ theme, locked = false }: { theme: number; locked?: boolean }) {
+function RoomPreview({ theme }: { theme: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const ctx = canvas.current?.getContext('2d');
     if (ctx) { ctx.drawImage(roomCanvas(theme, theme), 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(spriteCanvas('hero', 0), 155, 175, 60, 80); ctx.drawImage(spriteCanvas('boss', 0, theme), 374, 140, 115, 115); }
   }, [theme]);
-  return <canvas width={640} height={360} ref={canvas} className={`room-preview ${locked ? 'locked-art' : ''}`} aria-hidden="true" />;
+  return <canvas width={640} height={360} ref={canvas} className="room-preview" aria-hidden="true" />;
 }
 function Dialog({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   const root = useRef<HTMLDivElement>(null);
@@ -63,9 +64,9 @@ export default function DungeonGame() {
   const [screen, setScreen] = useState<'hub' | 'prepare' | 'run'>('hub');
   const [panel, setPanel] = useState<'settings' | 'codex' | 'stats' | 'exit' | null>(null);
   const [paused, setPaused] = useState(false);
-  const [selectedDungeon, setSelectedDungeon] = useState<DungeonId>('library');
+  const [selectedDungeon, setSelectedDungeon] = useState<DungeonId>(() => loaded.profile.run && loaded.profile.run.phase !== 'victory' ? loaded.profile.run.dungeon : DUNGEONS[Math.floor(Math.random() * DUNGEONS.length)].id);
   const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
-  const [weapon, setWeapon] = useState<WeaponId>('pistol');
+  const [weapon, setWeapon] = useState<WeaponId>(() => loaded.profile.run && loaded.profile.run.phase !== 'victory' ? loaded.profile.run.weapon : WEAPONS[Math.floor(Math.random() * WEAPONS.length)].id);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
@@ -130,12 +131,12 @@ export default function DungeonGame() {
     return () => clearTimeout(revealTimer);
   }, [run?.phase, stopped]);
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (lock.current || stopped || composing.current || !input.trim()) return;
+  const submit = (event?: FormEvent, answer: StudyAnswer = input) => {
+    event?.preventDefault();
+    if (lock.current || stopped || composing.current || !hasStudyAnswer(answer)) return;
     const before = current.current;
     if (!before.run) return;
-    const next = submitAnswer(before, input, before.run.sequence);
+    const next = submitAnswer(before, answer, before.run.sequence);
     if (next === before) return;
     lock.current = true; setBusy(true); setInput('');
     commit(next); activateAudio();
@@ -149,7 +150,8 @@ export default function DungeonGame() {
     try { original = blockedSave ? localStorage.getItem(PROFILE_KEY) : null; } catch { /* Export the in-memory profile when storage is inaccessible. */ }
     exportFile(`memory-dungeon-${dayKey()}.json`, original || JSON.stringify(current.current, null, 2), 'application/json');
   };
-  const goHub = () => { setScreen('hub'); setPanel(null); setPaused(false); setInput(''); dungeonSound.stop(); };
+  const randomizeLoadout = () => { setSelectedDungeon(DUNGEONS[Math.floor(Math.random() * DUNGEONS.length)].id); setWeapon(WEAPONS[Math.floor(Math.random() * WEAPONS.length)].id); };
+  const goHub = () => { if (!current.current.run || current.current.run.phase === 'victory') randomizeLoadout(); setScreen('hub'); setPanel(null); setPaused(false); setInput(''); dungeonSound.stop(); };
   const abandon = () => { commit({ ...current.current, run: null }); goHub(); };
 
   return <div className="dungeon-app" data-motion={profile.settings.motion ? 'on' : 'off'}>
@@ -162,12 +164,12 @@ export default function DungeonGame() {
     <div className="desktop-notice">던전은 PC에 맞춰 제작됐습니다. 작은 화면에서는 상단의 기본 암기 모드를 이용해 주세요.</div>
 
     {(screen === 'hub' || screen === 'prepare') && <main className="compact-hub">
-      <div className="setup-topline"><label htmlFor="category-select">학습</label><select id="category-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>{CATEGORIES.map(category => <option value={category.id} key={category.id}>{category.group === 'civil' ? '공무원' : '숫자'} · {category.category}</option>)}</select></div>
-      <div className="dungeon-cards">{DUNGEONS.map((world, index) => <button key={world.id} className={`dungeon-card world-${index} ${selectedDungeon === world.id ? 'chosen' : ''}`} disabled={index > profile.unlockedDungeon} onClick={() => setSelectedDungeon(world.id)} aria-pressed={selectedDungeon === world.id} title={index > profile.unlockedDungeon ? '이전 던전 완료 후 해금' : world.title}>
-        <div className="dungeon-cover"><RoomPreview theme={index} locked={index > profile.unlockedDungeon} />{index > profile.unlockedDungeon && <span className="locked-overlay"><LockKeyhole size={23} /></span>}</div>
-        <div className="dungeon-card-info"><h2>{world.title}{index > profile.unlockedDungeon ? <LockKeyhole size={15} /> : selectedDungeon === world.id ? <Check size={18} /> : <ChevronRight size={18} />}</h2>{profile.completed.includes(world.id) && <span className="cleared-mark">완료</span>}</div>
+      <div className="setup-topline"><label htmlFor="category-select">학습</label><select id="category-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>{CATEGORIES.map(category => <option value={category.id} key={category.id}>{category.group === 'history' ? category.category : `${category.group === 'civil' ? '공무원' : '숫자'} · ${category.category}`}</option>)}</select></div>
+      <div className="dungeon-cards">{DUNGEONS.map((world, index) => <button key={world.id} className={`dungeon-card world-${index} ${selectedDungeon === world.id ? 'chosen' : ''}`} onClick={() => setSelectedDungeon(world.id)} aria-pressed={selectedDungeon === world.id} title={world.title}>
+        <div className="dungeon-cover"><RoomPreview theme={index} /></div>
+        <div className="dungeon-card-info"><h2>{world.title}{selectedDungeon === world.id ? <Check size={18} /> : <ChevronRight size={18} />}</h2>{profile.completed.includes(world.id) && <span className="cleared-mark">완료</span>}</div>
       </button>)}</div>
-      <section className="compact-weapons" aria-label="무기 선택"><div className="weapon-heading"><h2>무기</h2><span>{profile.score} 기억</span></div><div className="compact-weapon-list">{WEAPONS.map((arm, index) => <button key={arm.id} className={weapon === arm.id ? 'active' : ''} disabled={arm.unlock > profile.score} onClick={() => setWeapon(arm.id)} title={arm.unlock > profile.score ? `${arm.unlock} 기억에 해금` : arm.description} aria-pressed={weapon === arm.id}><Pixel kind="weapon" index={index} /><span>{arm.name}</span>{arm.unlock > profile.score && <small><LockKeyhole size={10} />{arm.unlock}</small>}</button>)}</div><p className="selected-weapon-detail">{weaponById(weapon).description}</p></section>
+      <section className="compact-weapons" aria-label="무기 선택"><div className="weapon-heading"><h2>무기</h2><span>{profile.score} 기억</span></div><div className="compact-weapon-list">{WEAPONS.map((arm, index) => <button key={arm.id} className={weapon === arm.id ? 'active' : ''} onClick={() => setWeapon(arm.id)} title={arm.description} aria-pressed={weapon === arm.id}><Pixel kind="weapon" index={index} /><span>{arm.name}</span></button>)}</div><p className="selected-weapon-detail">{weaponById(weapon).description}</p></section>
       <div className="compact-start">{run && run.phase !== 'victory' ? <><span>{dungeonById(run.dungeon).title} · {roomPosition + 1}/{roomSteps.length} 구간</span><button className="text-button" onClick={() => setPanel('exit')}>원정 끝내기</button><button className="game-button primary" onClick={resume}>이어서<Play size={17} /></button></> : <button className="game-button primary" onClick={begin}>시작<ArrowRight size={19} /></button>}</div>
     </main>}
 
@@ -177,14 +179,14 @@ export default function DungeonGame() {
         <Arena run={run} roomNumber={roomPosition + 1} paused={stopped} motion={profile.settings.motion} />
         <div className={`answer-panel ${run.lastResult?.outcome === 'wrong' ? 'answer-warning' : ''}`}>
           <div className="answer-caption"><span>{run.phase === 'recovery' ? '회복 중' : run.bossShield ? '봉인 해제' : ''}</span></div>
-          <DungeonStudy run={run} value={input} busy={busy} paused={stopped} onChange={setInput} onSubmit={submit} onComposition={value => { composing.current = value; }} onPick={id => { if (!lock.current) { commit(selectQuestion(current.current, id)); setInput(''); } }} />
+          <DungeonStudy run={run} value={input} busy={busy} paused={stopped} onChange={setInput} onSubmit={submit} onSubmitTimeline={answer => submit(undefined, answer)} onComposition={value => { composing.current = value; }} onPick={id => { if (!lock.current) { commit(selectQuestion(current.current, id)); setInput(''); } }} />
           {run.phase === 'rest' && <div className="study-intermission"><span>체력 +4</span><button className="game-button primary small" onClick={() => commit(leaveRest(current.current))}>계속<ArrowRight size={15} /></button></div>}
 
           <p className={`battle-notice notice-${run.lastResult?.outcome || 'idle'}`} role="status" aria-live="polite">{busy ? '공격 중…' : run.phase === 'question' || run.phase === 'recovery' ? run.lastResult?.outcome === 'wrong' ? '오답 · 다시 입력하세요.' : run.lastResult?.outcome === 'correct' ? run.lastResult.review ? '복습 성공' : '정답' : '' : ''}</p>
         </div>
       </div><aside className="run-sidebar">
         <section className="path-panel"><div className="room-track" aria-label={`${roomSteps.length}구간 중 ${roomPosition + 1}구간`}>{roomSteps.map((index, position) => <div className={`${index === run.room ? 'current' : index < run.room ? 'done' : ''}`} key={index} title={ROOM_NAMES[index]}>{index < run.room ? <Check size={15} /> : index === 5 ? <Trophy size={15} /> : position + 1}</div>)}</div></section>
-        {run.phase === 'reward' ? <section className="choice-panel"><h2 title="고르지 않고 정답을 제출하면 첫 강화를 자동 선택합니다.">강화 <small className="optional-choice">선택 사항</small> {run.rewardsLeft > 1 ? `· ${run.rewardsLeft}개` : ''}</h2><div className="relic-choices">{run.choices.map(id => { const relic = RELICS.find(r => r.id === id)!; const index = RELICS.indexOf(relic); return <button key={id} disabled={busy || stopped} onClick={() => { if (Date.now() - lastRewardAt.current < 300) return; lastRewardAt.current = Date.now(); commit(takeRelic(current.current, id)); activateAudio(); dungeonSound.effect('choice'); }}><Pixel kind="relic" index={index} /><span><em>{relic.type} · {(run.relics[id] || 0) + 1}/{relic.max}</em><b>{relic.name}</b><small>{relic.description}</small></span><ChevronRight size={16} /></button>; })}</div></section> : run.phase === 'route' ? <section className="choice-panel"><h2>다음 방</h2><button className="route-option" onClick={() => { commit(chooseRoute(current.current, 'elite')); activateAudio(); }}><Zap size={24} /><b>정예의 방</b><span>유물 2개</span><ArrowRight size={20} /></button><button className="route-option rest" onClick={() => commit(chooseRoute(current.current, 'rest'))}><Heart size={24} /><b>휴식</b><span>체력 +4</span><ArrowRight size={20} /></button></section> : run.phase === 'victory' ? <section className="choice-panel result-panel"><h2>원정 완료</h2><div className="result-stats"><div><b>{Object.keys(run.answers).length}</b><span>문항</span></div><div><b>{run.correct}</b><span>자력 정답</span></div><div><b>{run.reviews}</b><span>복습 성공</span></div><div><b>+{profile.score - run.scoreAtStart}</b><span>기억</span></div></div><p>원정 시간 {formatTime(profile.summaries[0]?.seconds || 0)}</p><div className="unlocks-row" aria-label="새 해금">{WEAPONS.filter(w => w.unlock > run.scoreAtStart && w.unlock <= profile.score).map(w => <span key={w.id} title={`${w.name} 해금`}><Pixel kind="weapon" index={WEAPONS.indexOf(w)} /><span className="sr-only">{w.name} 해금</span></span>)}</div><button className="game-button primary" onClick={() => { commit({ ...current.current, run: null }); setSelectedDungeon(DUNGEONS[Math.min(2, theme + 1)].id); setScreen('prepare'); }}>다음 원정<ArrowRight size={18} /></button><button className="text-button" onClick={goHub}>저장 후 쉬기</button></section> : <section className="enemy-panel"><h2>{run.phase === 'recovery' ? '회복 중' : '적'}</h2>{run.phase === 'recovery' ? <p>남은 문항을 풀면서 체력을 회복합니다.</p> : run.enemies.map(enemy => <div className={`enemy-row ${enemy.hp <= 0 ? 'defeated' : ''}`} key={enemy.id}><Pixel kind={enemy.boss ? 'boss' : 'enemy'} index={theme * 3 + enemy.kind} theme={theme} /><div><b>{enemy.name}</b><small>{enemy.hp <= 0 ? '처치 완료' : `${enemy.hp}/${enemy.maxHp} HP${enemy.armor ? ` · 갑옷 ${enemy.armor}` : ''}`}</small>{enemy.boss && <span>{run.bossShield ? '봉인 활성' : `패턴 ${run.bossPhase}`}</span>}</div></div>)}</section>}
+        {run.phase === 'reward' ? <section className="choice-panel"><h2 title="고르지 않고 정답을 제출하면 첫 강화를 자동 선택합니다.">강화 <small className="optional-choice">선택 사항</small> {run.rewardsLeft > 1 ? `· ${run.rewardsLeft}개` : ''}</h2><div className="relic-choices">{run.choices.map(id => { const relic = RELICS.find(r => r.id === id)!; const index = RELICS.indexOf(relic); return <button key={id} disabled={busy || stopped} onClick={() => { if (Date.now() - lastRewardAt.current < 300) return; lastRewardAt.current = Date.now(); commit(takeRelic(current.current, id)); activateAudio(); dungeonSound.effect('choice'); }}><Pixel kind="relic" index={index} /><span><em>{relic.type} · {(run.relics[id] || 0) + 1}/{relic.max}</em><b>{relic.name}</b><small>{relic.description}</small></span><ChevronRight size={16} /></button>; })}</div></section> : run.phase === 'route' ? <section className="choice-panel"><h2>다음 방</h2><button className="route-option" onClick={() => { commit(chooseRoute(current.current, 'elite')); activateAudio(); }}><Zap size={24} /><b>정예의 방</b><span>유물 2개</span><ArrowRight size={20} /></button><button className="route-option rest" onClick={() => commit(chooseRoute(current.current, 'rest'))}><Heart size={24} /><b>휴식</b><span>체력 +4</span><ArrowRight size={20} /></button></section> : run.phase === 'victory' ? <section className="choice-panel result-panel"><h2>원정 완료</h2><div className="result-stats"><div><b>{Object.keys(run.answers).length}</b><span>문항</span></div><div><b>{run.correct}</b><span>자력 정답</span></div><div><b>{run.reviews}</b><span>복습 성공</span></div><div><b>+{profile.score - run.scoreAtStart}</b><span>기억</span></div></div><p>원정 시간 {formatTime(profile.summaries[0]?.seconds || 0)}</p><button className="game-button primary" onClick={() => { commit({ ...current.current, run: null }); randomizeLoadout(); setScreen('prepare'); }}>다음 원정<ArrowRight size={18} /></button><button className="text-button" onClick={goHub}>저장 후 쉬기</button></section> : <section className="enemy-panel"><h2>{run.phase === 'recovery' ? '회복 중' : '적'}</h2>{run.phase === 'recovery' ? <p>남은 문항을 풀면서 체력을 회복합니다.</p> : run.enemies.map(enemy => <div className={`enemy-row ${enemy.hp <= 0 ? 'defeated' : ''}`} key={enemy.id}><Pixel kind={enemy.boss ? 'boss' : 'enemy'} index={theme * 3 + enemy.kind} theme={theme} /><div><b>{enemy.name}</b><small>{enemy.hp <= 0 ? '처치 완료' : `${enemy.hp}/${enemy.maxHp} HP${enemy.armor ? ` · 갑옷 ${enemy.armor}` : ''}`}</small>{enemy.boss && <span>{run.bossShield ? '봉인 활성' : `패턴 ${run.bossPhase}`}</span>}</div></div>)}</section>}
         <section className="loadout-panel"><div className="loadout-weapon"><Pixel kind="weapon" index={WEAPONS.findIndex(w => w.id === run.weapon)} /><div><b>{weaponById(run.weapon).name}</b><small>{weaponById(run.weapon).description}</small></div></div><div className="equipped-relics">{Object.entries(run.relics).length ? Object.entries(run.relics).map(([id, count]) => { const index = RELICS.findIndex(r => r.id === id); return <span key={id} title={`${RELICS[index].name} ${count}단계: ${RELICS[index].description}`}><Pixel kind="relic" index={index} /><b>{count}</b><span className="sr-only">{RELICS[index].name} {count}단계</span></span>; }) : <p>유물 없음</p>}</div></section>
       </aside></div>
     </main>}
@@ -192,7 +194,7 @@ export default function DungeonGame() {
 
 
     {paused && screen === 'run' && !panel && <Dialog title="일시정지" onClose={resume}><div className="pause-copy"><Pixel kind="hero" /><p>기록이 저장되었습니다.</p></div><button className="game-button primary full" onClick={resume}><Play size={17} /> 이어서</button><button className="text-button full" onClick={goHub}>저장 후 거점</button></Dialog>}
-    {panel === 'exit' && <Dialog title="원정 종료" onClose={() => setPanel(null)}><p className="modal-copy">원정을 끝내면 이번 유물은 사라집니다. 영구 해금과 복습 기록은 유지됩니다.</p><button className="game-button primary full" onClick={goHub}>저장 후 거점</button><button className="game-button full" onClick={abandon}>원정 끝내기</button></Dialog>}
+    {panel === 'exit' && <Dialog title="원정 종료" onClose={() => setPanel(null)}><p className="modal-copy">원정을 끝내면 이번 유물은 사라집니다. 기억 점수와 복습 기록은 유지됩니다.</p><button className="game-button primary full" onClick={goHub}>저장 후 거점</button><button className="game-button full" onClick={abandon}>원정 끝내기</button></Dialog>}
     {panel === 'settings' && <Dialog title="설정" onClose={() => { setPanel(null); if (screen === 'run') activateAudio(); }}><div className="settings-fields"><label>배경 음악 <output>{Math.round(profile.settings.music * 100)}%</output><input aria-label="배경 음악 음량" type="range" min="0" max="1" step="0.01" value={profile.settings.music} onChange={e => { commit({ ...current.current, settings: { ...current.current.settings, music: Number(e.target.value) } }); activateAudio(); }} /></label><label>효과음 <output>{Math.round(profile.settings.effects * 100)}%</output><input aria-label="효과음 음량" type="range" min="0" max="1" step="0.01" value={profile.settings.effects} onChange={e => { commit({ ...current.current, settings: { ...current.current.settings, effects: Number(e.target.value) } }); activateAudio(); dungeonSound.effect('choice'); }} /></label><label className="checkbox-label"><input type="checkbox" checked={profile.settings.motion} onChange={e => commit({ ...current.current, settings: { ...current.current.settings, motion: e.target.checked } })} /> 화면 흔들림과 타격 효과</label><p>끄면 흔들림·번쩍임·파티클을 줄입니다. 전투 결과는 글과 아이콘으로도 표시됩니다.</p><button className="game-button" onClick={exportProgress}><Download size={17} /> 진행 기록 JSON</button><button className="game-button" onClick={exportMetrics}><Download size={17} /> 사용 지표 CSV</button></div></Dialog>}
     {panel === 'codex' && <Dialog title="도감" onClose={() => setPanel(null)}><Codex profile={profile} /></Dialog>}
     {panel === 'stats' && <Dialog title="학습 기록" onClose={() => setPanel(null)}><Stats profile={profile} /><button className="game-button" onClick={exportMetrics}><Download size={17} /> CSV 내보내기</button></Dialog>}
@@ -210,7 +212,7 @@ function Codex({ profile }: { profile: Profile }) {
   const [page, setPage] = useState(0);
   return <div className="codex-view"><nav className="panel-tabs" aria-label="도감 분류">{[['weapons', '무기'], ['relics', '유물'], ['bosses', '보스']].map(([id, label]) => <button key={id} aria-pressed={tab === id} onClick={() => { setTab(id); setPage(0); }}>{label}</button>)}</nav>
     <div className="codex-grid">
-      {tab === 'weapons' && WEAPONS.map((arm, index) => <div className={arm.unlock > profile.score ? 'codex-locked' : ''} key={arm.id}><Pixel kind="weapon" index={index} /><b>{arm.name}</b><small>{arm.description}</small><em>{arm.unlock > profile.score ? `${arm.unlock} 기억에 해금` : '사용 가능'}</em></div>)}
+      {tab === 'weapons' && WEAPONS.map((arm, index) => <div key={arm.id}><Pixel kind="weapon" index={index} /><b>{arm.name}</b><small>{arm.description}</small><em>사용 가능</em></div>)}
       {tab === 'relics' && RELICS.slice(page * 6, page * 6 + 6).map(relic => <div key={relic.id}><Pixel kind="relic" index={RELICS.indexOf(relic)} /><b>{relic.name}</b><small>{relic.description}</small></div>)}
       {tab === 'bosses' && DUNGEONS.map((world, index) => <div key={world.id}><Pixel kind="boss" theme={index} /><b>{world.boss}</b><small>{profile.completed.includes(world.id) ? '봉인 해제' : '미완료'}</small></div>)}
     </div><Pagination page={page} count={tab === 'relics' ? Math.ceil(RELICS.length / 6) : 1} onChange={setPage} />

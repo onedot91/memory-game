@@ -2,24 +2,31 @@ export interface CategoryItem {
   num?: string;
   name: string;
   aliases?: string[];
+  era?: '고대' | '중세' | '근대' | '현대';
+  timeline?: TimelineAnswer;
 }
+
+export interface TimelineAnswer { year: string; event: string }
+export type StudyAnswer = string | TimelineAnswer;
+export const HISTORY_ERAS = ['고대', '중세', '근대', '현대'] as const;
 
 export interface CategoryData {
   id: string;
   category: string;
-  group: 'civil' | 'number';
+  group: 'civil' | 'number' | 'history';
   items: CategoryItem[];
 }
 
 export interface TopicGroup {
-  id: 'civil' | 'number';
+  id: CategoryData['group'];
   name: string;
   icon: string;
 }
 
 export const TOPIC_GROUPS: TopicGroup[] = [
   { id: 'civil', name: '공무원 핵심 암기', icon: '🏛️' },
-  { id: 'number', name: '숫자(00~99) 낱말 암기', icon: '🔢' }
+  { id: 'number', name: '숫자(00~99) 낱말 암기', icon: '🔢' },
+  { id: 'history', name: '세계사 연표', icon: '🌍' }
 ];
 
 // 1. 공무원 핵심 암기 데이터
@@ -209,10 +216,54 @@ export const NUMBER_CATEGORIES: CategoryData[] = [
   }
 ];
 
+export const HISTORY_CATEGORIES: CategoryData[] = [{
+  id: 'history-timeline-20',
+  category: '세계사 연표 20',
+  group: 'history',
+  items: ([
+    ['30', '예수 처형', '고대'],
+    ['476', '서로마 멸망', '중세'],
+    ['1096', '제1차 십자군전쟁', '중세'],
+    ['1320', '단테 신곡', '중세'],
+    ['1453', '동로마 멸망', '중세'],
+    ['1492', '콜롬버스 아메리카 정복, 레콩키스타', '근대'],
+    ['1517', '루터 종교개혁', '근대'],
+    ['1543', '코페르니쿠스 지동설', '근대'],
+    ['1588', '영국의 스페인 무적함대 격파', '근대'],
+    ['1760', '영국 산업혁명', '근대'],
+    ['1776', '미국 독립선언', '근대'],
+    ['1789', '프랑스 혁명', '근대'],
+    ['1861', '미국 남북전쟁', '근대'],
+    ['1871', '독일 통일', '근대'],
+    ['1876', '벨 전화기 특허', '근대'],
+    ['1914', '제1차 세계대전', '현대'],
+    ['1917', '러시아 혁명', '현대'],
+    ['1939', '제2차 세계대전', '현대'],
+    ['1962', '쿠바 미사일 위기', '현대'],
+    ['1991', '소련 멸망', '현대'],
+  ] as const).map(([year, event, era], index) => ({
+    num: String(index + 1).padStart(2, '0'),
+    name: `${year}: ${event}`,
+    aliases: [`${year}년 ${event}`],
+    era,
+    timeline: { year, event },
+  })),
+}];
+
 export const ALL_CATEGORIES: CategoryData[] = [
   ...CIVIL_CATEGORIES,
-  ...NUMBER_CATEGORIES
+  ...NUMBER_CATEGORIES,
+  ...HISTORY_CATEGORIES
 ];
+
+export function hasStudyAnswer(answer: StudyAnswer): boolean {
+  return typeof answer === 'string' ? Boolean(answer.trim()) : Boolean(answer.year.trim() && answer.event.trim());
+}
+
+export function isItemMatch(answer: StudyAnswer, item: CategoryItem): boolean {
+  if (typeof answer === 'string') return isMatch(answer, item.name, item.aliases);
+  return Boolean(item.timeline && answer.year.trim().replace(/\s*년$/, '') === item.timeline.year && isMatch(answer.event, item.timeline.event));
+}
 
 /**
  * Remove all emojis from string

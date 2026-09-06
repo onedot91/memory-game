@@ -105,40 +105,5 @@
 }
 
 .arena-canvas canvas{width:100%!important;height:100%!important;object-fit:contain}
-@media(min-width:851px){
-  .classic-study{height:100dvh;min-height:0}
-  .classic-container{min-height:0;padding:16px 24px}
-  .classic-main{min-height:0;margin-top:12px;margin-bottom:12px}
-  .classic-summary{padding:12px 16px;margin-bottom:12px}
-  .classic-summary>div:first-child{margin-bottom:10px}
-  .classic-slot-grid{gap:10px;grid-auto-rows:minmax(52px,auto)}
-  .classic-slot-grid>div{padding:10px 12px;min-width:0}
-  .classic-slot-grid>div>div{min-width:0}
-  .classic-slot-grid span.text-base{overflow-wrap:anywhere;font-size:15px}
-  .classic-slot-grid input{min-width:0;font-size:15px}
-  .classic-pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px;font:12px monospace}
-  .classic-pagination button,.classic-pagination select{background:#231a38;color:#e2d9f3;border:1px solid #51406c;padding:5px 12px;border-radius:4px}
-  .classic-pagination button:disabled{opacity:.3}
-  .classic-pagination button:focus-visible,.classic-pagination select:focus-visible{outline:2px solid #ffe600;outline-offset:3px}
-  .mode-dock-classic{bottom:12px;right:16px;padding:3px;box-shadow:none;border-width:1px}
-  .mode-dock-classic button{font-size:10px;padding:5px 8px}
-}
 
 .unlocks-row{display:flex;gap:7px;margin-top:8px}.unlocks-row:empty{display:none}.unlocks-row>span{border:1px solid var(--yellow);background:#382937}.unlocks-row .pixel-art{width:30px;height:30px}
-.dungeon-study{min-width:0}.study-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.study-heading h2{font-size:15px;font-weight:800}.study-heading>span{font:11px monospace;color:var(--lime)}
-.study-progress{height:3px;background:#443052;margin:8px 0 10px}.study-progress i{display:block;height:100%;background:var(--lime)}
-.study-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-.study-slot{display:flex;align-items:center;gap:9px;min-width:0;height:44px;padding:7px 10px;border:1px solid #493254;background:#160f21;border-radius:5px}
-.study-slot.timeline{height:auto;min-height:44px}
-.study-slot.timeline .slot-answer{white-space:normal;overflow-wrap:anywhere;line-height:1.25;font-size:12px}
-.study-slot.active{border:2px solid var(--yellow);background:#281831;box-shadow:2px 2px 0 var(--pink)}.study-slot.correct{border-color:#4f9172;background:#14291f;color:var(--lime)}.study-slot.revealed{border-color:var(--pink);background:#301527;color:#ff9dc6}
-.slot-number{flex-shrink:0;background:#100d1b;border:1px solid #56324b;border-radius:3px;padding:1px 5px;font:11px monospace;color:#c3aacb}.study-slot.active .slot-number{color:var(--yellow)}
-.slot-answer{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.study-slot.pending .slot-answer{color:#655171}
-.study-slot form{display:flex;align-items:center;flex:1;min-width:0;gap:5px}.study-slot input{width:0;flex:1;min-width:0;background:none;border:0;outline:none!important;color:var(--paper);font-size:13px;padding:3px 0}.study-slot input::placeholder{color:#8d749a;font-size:12px}
-.study-slot form>button{display:grid;place-items:center;width:29px;height:26px;border:1px solid #150b1d;background:var(--yellow);color:var(--ink);border-radius:3px}.study-slot form>button:disabled{background:#534259;color:#a891b2}
-.study-pagination{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:10px;font:10px monospace;color:var(--muted)}.study-pagination button{display:flex;align-items:center;background:#281a33;border:1px solid #594064;color:var(--paper);padding:3px 8px;font-size:10px}.study-pagination button:disabled{opacity:.3}
-@media(min-width:851px) and (max-height:680px){.study-slot{height:38px;padding:5px 8px}.study-slot-grid{gap:5px}.study-heading h2{font-size:13px}.study-progress{margin:6px 0 8px}.study-pagination{margin-top:7px}}
-
-.study-slot .slot-answer{background:none;text-align:left;padding:0;border:0;color:inherit;font:inherit;font-size:13px}.study-slot.pending .slot-answer{color:#7e668e;cursor:pointer}.study-slot .slot-answer:disabled{cursor:default}.study-intermission{display:flex;align-items:center;justify-content:space-between;font-size:11px;margin-top:8px}
-
-.optional-choice{font-size:9px;font-weight:400;color:var(--muted);margin-left:6px}

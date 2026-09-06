@@ -100,6 +100,7 @@ export interface DailyMetrics {
 
 export interface Profile {
   version: 1;
+  lastCategoryId?: string;
   score: number;
   unlockedDungeon: number;
   memories: Record<string, MemoryRecord>;

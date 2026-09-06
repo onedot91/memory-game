@@ -28,7 +28,7 @@ export default function Arena({ run, roomNumber, paused, motion }: { run: Run; r
     if (paused) game.current?.loop.sleep(); else game.current?.loop.wake();
   }, [run, paused, motion, ready]);
   return <div className="arena-frame" data-fps={stats.fps} data-objects={stats.objects}>
-    <div ref={container} className="arena-canvas" role="img" aria-label={`${roomNumber}번째 방의 자동 전투. 적 상태와 학습 결과는 주변 텍스트에서 확인할 수 있습니다.`} />
+    <div ref={container} className="arena-canvas" role="img" aria-label={`${roomNumber}번째 방의 자동 전투`} />
     {!ready && <div className="arena-loading">{error || '픽셀 세계를 불러오는 중…'}</div>}
     
   </div>;

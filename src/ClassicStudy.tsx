@@ -11,6 +11,7 @@ import {
 } from './data';
 import { sound } from './audio';
 import TimelineStudy from './TimelineStudy';
+import StudyHeader, { type StudyModeProps } from './StudyHeader';
 import { useActivity } from './game/useActivity';
 import { recordMetrics } from './game/storage';
 import { 
@@ -51,7 +52,7 @@ const ORDER_STORAGE_KEY = 'retro_cloze_custom_item_order_v1';
 const TOPIC_STORAGE_KEY = 'retro_cloze_active_topic_v1';
 const FAILED_HISTORY_KEY = 'retro_cloze_failed_history_v1';
 
-export default function App() {
+export default function ClassicStudy({ onModeChange }: StudyModeProps) {
   const [selectedTopic, setSelectedTopic] = useState<CategoryData['group']>(() => {
     const saved = localStorage.getItem(TOPIC_STORAGE_KEY);
     return TOPIC_GROUPS.find(topic => topic.id === saved)?.id || 'civil';
@@ -690,176 +691,49 @@ export default function App() {
   const themeColor = themeColors[selectedCatIndex % themeColors.length];
 
   return (
-    <div className={`classic-study ${currentCategoryData.group === 'history' ? 'classic-timeline' : ''} min-h-screen bg-[#0b0716] text-[#e2d9f3] flex flex-col font-sans select-none overflow-x-hidden`}>
-      
-      {/* Background Ambience Grid */}
-      <div className="fixed inset-0 pointer-events-none opacity-20 bg-[linear-gradient(to_right,#2a1e47_1px,transparent_1px),linear-gradient(to_bottom,#2a1e47_1px,transparent_1px)] bg-[size:2.5rem_2.5rem]" />
-
-      {/* Main Container */}
-      <div className="classic-container relative z-10 flex-1 flex flex-col max-w-5xl w-full mx-auto p-3 sm:p-4 lg:p-6">
-        
-        {/* TOP BAR / NAVIGATION */}
-        <header className="flex flex-col gap-3 pb-3 border-b-2 border-[#231a38]">
-          
-          {/* Top Row: Topic Switcher Deck & Functional Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            
-            {/* Topic Switcher Deck Tabs */}
-            <div className="flex flex-wrap max-w-full items-center gap-1.5 p-1 bg-[#171126] border-2 border-[#2e214d] rounded-lg shadow-[3px_3px_0px_#000000]">
-              {TOPIC_GROUPS.map(tg => {
-                const isActive = selectedTopic === tg.id;
-                return (
-                  <button
-                    key={tg.id}
-                    onClick={() => {
-                      cancelAutoAdvance();
-                      if (selectedTopic !== tg.id) {
-                        sound.playMechanicalKey();
-                        setSelectedTopic(tg.id);
-                        setSelectedCatIndex(0);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded text-xs sm:text-sm font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-[#ff2a85] text-white border border-[#000000] shadow-[2px_2px_0px_#000000]'
-                        : 'text-[#a594c7] hover:text-white hover:bg-[#231a38]'
-                    }`}
-                  >
-                    <span>{tg.icon}</span>
-                    <span>{tg.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Functional Controls */}
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => {
-                  setIsEditOrderMode(prev => {
-                    const next = !prev;
-                    if (!next) {
-                      focusActiveInput();
-                    }
-                    return next;
-                  });
-                }}
-                title="순서 편집 (클릭 후 드래그하여 순서 변경)"
-                className={`kitsch-btn px-3 py-1.5 rounded cursor-pointer flex items-center gap-1.5 text-xs font-black transition-all ${
-                  isEditOrderMode 
-                    ? 'bg-[#ffe600] text-[#0b0716] border-2 border-[#000000] shadow-[2px_2px_0px_#ff2a85]' 
-                    : 'bg-[#231a38] text-[#ffe600] border border-[#000000] hover:text-white hover:bg-[#2d2247]'
-                }`}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{isEditOrderMode ? '편집 완료' : '순서 편집'}</span>
-              </button>
-
-              <button
-                onClick={() => setIsMuted(prev => !prev)}
-                title="사운드 (Alt+M)"
-                className={`kitsch-btn px-3 py-1.5 rounded cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
-                  !isMuted 
-                    ? 'bg-[#ccff00] text-[#0b0716] border-[#000000]' 
-                    : 'bg-[#ff2a85] text-white border-[#000000]'
-                }`}
-              >
-                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                <span>{isMuted ? '음소거' : '효과음'}</span>
-              </button>
-
-              <button
-                onClick={handleResetAll}
-                title="전체 초기화 (ESC)"
-                className="kitsch-btn px-3 py-1.5 border border-[#000000] text-[#a594c7] hover:text-white bg-[#231a38] hover:bg-[#ff2a85]/30 cursor-pointer rounded flex items-center gap-1.5 text-xs font-bold"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>전체 초기화</span>
-              </button>
-            </div>
-
-          </div>
-
-          {/* Sub Row: Category Tabs */}
-          <nav className="flex flex-wrap items-center gap-1.5">
+    <div className={`classic-study ${currentCategoryData.group === 'history' ? 'classic-timeline' : ''}`}>
+      <StudyHeader mode="classic" onModeChange={onModeChange} actions={<>
+        <button onClick={() => setIsEditOrderMode(prev => { const next = !prev; if (!next) focusActiveInput(); return next; })} aria-pressed={isEditOrderMode} aria-label={isEditOrderMode ? '편집 완료' : '순서 편집'} title="순서 편집">
+          <ArrowUpDown size={17} /><span>{isEditOrderMode ? '편집 완료' : '순서 편집'}</span>
+        </button>
+        <button onClick={() => setIsMuted(prev => !prev)} aria-label={isMuted ? '음소거' : '효과음'} aria-pressed={!isMuted} title="사운드 (Alt+M)">
+          {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}<span>{isMuted ? '음소거' : '효과음'}</span>
+        </button>
+        <button onClick={handleResetAll} aria-label="전체 초기화" title="전체 초기화 (ESC)"><RotateCcw size={17} /><span>전체 초기화</span></button>
+      </>} />
+      <div className="classic-container">
+        <div className="classic-navigation">
+          <nav className="study-topic-tabs" aria-label="학습 주제">
+            {TOPIC_GROUPS.map(tg => <button key={tg.id} aria-pressed={selectedTopic === tg.id} onClick={() => {
+              cancelAutoAdvance();
+              if (selectedTopic !== tg.id) { sound.playMechanicalKey(); setSelectedTopic(tg.id); setSelectedCatIndex(0); }
+            }}>{tg.name}</button>)}
+          </nav>
+          <nav className="study-category-tabs" aria-label="학습 카테고리">
             {currentTopicCategories.map((cat, idx) => {
-              const isSelected = selectedCatIndex === idx;
               const savedForCat = allProgress[cat.id];
-              const isCleared = savedForCat && savedForCat.revealedNames && savedForCat.revealedNames.length >= cat.items.length;
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    cancelAutoAdvance();
-                    setSelectedCatIndex(idx);
-                  }}
-                  className={`kitsch-btn flex items-center gap-2 px-3.5 py-1.5 text-xs font-black rounded cursor-pointer ${
-                    isSelected
-                      ? 'bg-[#ffe600] text-[#0b0716] border-[#000000] shadow-[3px_3px_0px_#ff2a85]'
-                      : 'bg-[#231a38] text-[#a594c7] border-[#000000] hover:text-white hover:bg-[#2d2247]'
-                  }`}
-                >
-                  <span className="text-[11px] opacity-70">[{idx + 1}]</span>
-                  <span className="tracking-tight">{cat.category}</span>
-                  {isCleared && <Check className="w-3.5 h-3.5 text-[#0b0716] stroke-[3]" />}
-                </button>
-              );
+              const isCleared = savedForCat?.revealedNames && savedForCat.revealedNames.length >= cat.items.length;
+              return <button key={cat.id} aria-pressed={selectedCatIndex === idx} onClick={() => { cancelAutoAdvance(); setSelectedCatIndex(idx); }}>
+                <span className="category-shortcut">[{idx + 1}]</span>{cat.category}{isCleared && <Check size={14} className="study-success" />}
+              </button>;
             })}
           </nav>
-        </header>
-
-        {/* MAIN STAGE CONSOLE */}
-        <main className="classic-main flex-1 flex flex-col justify-center my-3 max-w-4xl w-full mx-auto">
-          
-          {/* Header Banner */}
-          <div className="classic-summary bg-[#171126] border-2 border-[#2e214d] p-4 lg:p-5 rounded-xl mb-4 shadow-[5px_5px_0px_#000000]">
-            <div className="flex flex-wrap items-center justify-between gap-3.5 mb-3.5">
-              
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full bg-[#ff2a85] border border-[#000000] shadow-[0_0_8px_#ff2a85]" />
-                <h2 className="text-xl lg:text-2xl font-black text-white tracking-tight">
-                  {currentCategoryData.category}
-                </h2>
+        </div>
+        <main className="classic-main">
+          <div className="classic-summary">
+            <div className="study-heading">
+              <h2>{currentCategoryData.category}</h2>
+              <div className="summary-actions">
+                {isCustomOrderActive && <button onClick={handleResetItemOrder} title="기본 순서로 복원" className="study-quiet-button"><RotateCcw size={14} />기본 순서 복원</button>}
+                <span className="study-count">{revealedCount} / {totalCount}</span>
               </div>
-
-              {currentCategoryData.group === 'history' && noticeMessage && <span className="timeline-summary-notice" role="status" title={noticeMessage}>{noticeMessage}</span>}
-              <div className="flex items-center gap-2">
-                {isCustomOrderActive && (
-                  <button
-                    onClick={handleResetItemOrder}
-                    title="기본 순서로 복원"
-                    className="kitsch-btn px-2.5 py-1 rounded-lg cursor-pointer flex items-center gap-1.5 text-xs font-black bg-[#231a38] hover:bg-[#a594c7] text-[#a594c7] hover:text-[#0b0716] border-2 border-[#000000] shadow-[2px_2px_0px_#000000] transition-colors"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>기본 순서 복원</span>
-                  </button>
-                )}
-
-                <div className="bg-[#231a38] border-2 border-[#000000] px-3.5 py-1 rounded-lg flex items-center gap-2.5 shadow-[2px_2px_0px_#000000]">
-                  <span className="text-xs font-black text-[#00ff66] font-mono">
-                    {revealedCount} / {totalCount}
-                  </span>
-                  <span className="text-xs font-black text-[#ffe600]">
-                    {progressPercent}%
-                  </span>
-                </div>
-              </div>
-
             </div>
-
-            {/* Neo-brutalist Gradient Gauge */}
-            <div className="kitsch-gauge-bg">
-              <div 
-                className="kitsch-gauge-fill" 
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
+            <div className="study-progress" aria-label={`${totalCount}문항 중 ${revealedCount}문항 완료`}><i style={{ width: `${progressPercent}%` }} /></div>
           </div>
 
           {/* Edit Mode Notification Banner */}
           {isEditOrderMode && (
-            <div className="flex items-center justify-between text-xs font-black text-[#ffe600] bg-[#843dff]/25 border-2 border-[#ffe600] px-3.5 py-2.5 rounded-xl mb-3 shadow-[3px_3px_0px_#000000] animate-jelly-snap">
+            <div className="study-edit-notice">
               <span className="flex items-center gap-2">
                 <ArrowUpDown className="w-4 h-4 text-[#ffe600] shrink-0" />
                 <span>순서 편집 중 (정답 전체 공개): 카드를 드래그하여 원하는 위치로 순서를 변경하세요.</span>
@@ -869,7 +743,7 @@ export default function App() {
                   setIsEditOrderMode(false);
                   focusActiveInput();
                 }}
-                className="px-3 py-1 bg-[#ffe600] text-[#0b0716] rounded font-black text-xs hover:bg-white cursor-pointer border border-[#000000] shadow-[1px_1px_0px_#000000] shrink-0"
+                className="study-quiet-button"
               >
                 편집 완료
               </button>
@@ -919,13 +793,7 @@ export default function App() {
                         setDragOverSlotIndex(null);
                       }
                     }}
-                    className={`kitsch-card flex items-center justify-between p-3.5 sm:p-4 rounded-xl border-2 transition-all cursor-grab active:cursor-grabbing select-none ${
-                      isDraggingThis
-                        ? 'opacity-40 border-dashed border-[#ffe600] bg-[#1a1230]'
-                        : isDragOverThis
-                        ? 'border-[#00f0ff] bg-[#00f0ff]/15 scale-[1.02]'
-                        : 'bg-[#18112a] border-[#4b3575] hover:border-[#ffe600] hover:bg-[#22163b] shadow-[3px_3px_0px_#000000]'
-                    }`}
+                    className="study-card classic-card edit-card" data-dragging={isDraggingThis} data-drag-over={isDragOverThis}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <GripVertical className="w-4 h-4 text-[#ffe600] shrink-0" />
@@ -968,17 +836,7 @@ export default function App() {
                       }
                     }}
                     onClick={() => handleSlotClick(index)}
-                    className={`kitsch-card flex items-center justify-between p-3.5 sm:p-4 rounded-xl border-2 transition-all select-none ${
-                      isEditOrderMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
-                    } ${
-                      isDraggingThis
-                        ? 'opacity-40 border-dashed border-[#ffe600] bg-[#1a1230]'
-                        : isDragOverThis
-                        ? 'border-[#00f0ff] bg-[#00f0ff]/15 scale-[1.02]'
-                        : isSurrender
-                        ? 'bg-[#2a0e24] border-[#ff2a85] shadow-[4px_4px_0px_#ff2a85]/40 text-[#ff2a85]'
-                        : 'bg-[#0f241d] border-[#00ff66] shadow-[4px_4px_0px_#00ff66]/40 text-[#00ff66]'
-                    }`}
+                    className="study-card classic-card" data-state={isSurrender ? 'revealed' : 'correct'}
                   >
                     <div className="flex items-center gap-3">
                       {isEditOrderMode ? (
@@ -1002,7 +860,8 @@ export default function App() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {isSurrender && <span className="study-feedback" role="status">2차 오답 · 정답 공개</span>}
+                    <div className="study-status-icon">
                       {isSurrender ? (
                         <div 
                           className="w-6 h-6 rounded bg-[#ff2a85] text-white border border-[#000000] flex items-center justify-center font-black shadow-[1px_1px_0px_#000000]"
@@ -1046,18 +905,9 @@ export default function App() {
                         setDragOverSlotIndex(null);
                       }
                     }}
-                    className={`relative p-3.5 sm:p-4 rounded-xl border-3 transition-all ${
-                      inputShake ? 'animate-retro-shake' : ''
-                    } ${
-                      inputFlashGreen 
-                        ? 'border-[#00ff66] !bg-[#00ff66]/20' 
-                        : isFirstMistake
-                        ? 'border-[#ff7700] !bg-[#2a1b14] shadow-[5px_5px_0px_#ff7700]'
-                        : hasPrevFail
-                        ? 'border-[#ffe600] !bg-[#2c1532] shadow-[5px_5px_0px_#ff2a85]'
-                        : 'border-[#ffe600] !bg-[#23153c] shadow-[5px_5px_0px_#ff2a85]'
-                    }`}
+                    className="study-card classic-card" data-state={isFirstMistake ? 'retry' : 'active'}
                   >
+                    {isFirstMistake && <span className="study-feedback" role="status">1차 오답 · 다시 입력</span>}
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
@@ -1079,9 +929,6 @@ export default function App() {
                           {slot.item.num || String(index + 1).padStart(2, '0')}{slot.item.era && ` · ${slot.item.era}`}
                         </span>
                         
-                        <div 
-                          className={`w-2 h-4 shrink-0 transition-transform ${isKeyActive ? 'scale-125 bg-[#00f0ff]' : 'bg-[#ffe600]'}`}
-                        />
 
                         <input
                           ref={inputRef}
@@ -1104,8 +951,8 @@ export default function App() {
                           }}
                           placeholder={
                             isFirstMistake 
-                              ? "1회 오답! 다시 도전..." 
-                              : slot.item.era ? '연도 + 사건 입력…' : `[${slot.item.num || index + 1}] 낱말 입력 후 Enter...`
+                              ? '다시 입력…'
+                              : slot.item.era ? '연도 + 사건 입력…' : '정답 입력…'
                           }
                           autoComplete="off"
                           autoCorrect="off"
@@ -1118,6 +965,7 @@ export default function App() {
 
                       <button
                         type="submit"
+                        aria-label="정답 제출"
                         className="kitsch-btn px-3 py-2 bg-[#ffe600] text-[#0b0716] rounded-lg font-black text-xs cursor-pointer border border-[#000000] shadow-[2px_2px_0px_#000000] hover:bg-white active:translate-x-[1px] active:translate-y-[1px] shrink-0"
                       >
                         <ArrowRight className="w-4 h-4 stroke-[3]" />
@@ -1149,17 +997,7 @@ export default function App() {
                     }
                   }}
                   onClick={() => handleSlotClick(index)}
-                  className={`kitsch-card flex items-center justify-between p-3.5 sm:p-4 rounded-xl border-2 transition-all cursor-pointer select-none ${
-                    isDraggingThis
-                      ? 'opacity-40 border-dashed border-[#ffe600] !bg-[#1a1230]'
-                      : isDragOverThis
-                      ? 'border-[#00f0ff] !bg-[#00f0ff]/15 scale-[1.02]'
-                      : wasAttempted
-                      ? '!bg-[#1e142a] border-[#ff7700]/60 shadow-[3px_3px_0px_#ff7700]/30 hover:border-[#ff7700]'
-                      : hasPrevFail
-                      ? 'prev-failed-slot shadow-[3px_3px_0px_#000000]'
-                      : '!bg-[#150f24] !border-[#291c44] shadow-[3px_3px_0px_#000000] hover:!border-[#843dff] hover:!bg-[#1a1230]'
-                  }`}
+                  className="study-card classic-card" data-state={wasAttempted ? 'retry' : 'pending'} data-prev-failed={hasPrevFail}
                 >
                   <div className="flex items-center gap-3">
                     {isEditOrderMode && (
@@ -1184,8 +1022,8 @@ export default function App() {
                   </div>
 
                   {wasAttempted && (
-                    <span className="text-[10px] font-black text-[#ff7700] bg-[#ff7700]/20 border border-[#ff7700] px-1.5 py-0.5 rounded font-mono">
-                      1차 오답
+                    <span className="study-feedback">
+                      1차 오답 · 다시 입력
                     </span>
                   )}
                 </div>
@@ -1203,7 +1041,7 @@ export default function App() {
 
           {/* Dynamic Notice / Error Feedback Strip */}
           {noticeMessage && currentCategoryData.group !== 'history' && (
-            <div className="mt-4 p-3 bg-[#1d1430] border-2 border-[#ff2a85] rounded-xl text-center text-xs font-black text-white shadow-[3px_3px_0px_#ff2a85] animate-jelly-snap">
+            <div className="study-notice" role="status">
               {noticeMessage}
             </div>
           )}

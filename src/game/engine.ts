@@ -1,6 +1,6 @@
 import { hasStudyAnswer, isItemMatch, type StudyAnswer } from '../data';
 import { BALANCE, CATEGORIES, DUNGEONS, ITEMS, RELICS, WEAPONS, dungeonById, itemById } from './content';
-import type { DungeonId, Enemy, Profile, RelicId, Run, WeaponId } from './types';
+import type { DailyMetrics, DungeonId, Enemy, Profile, RelicId, Run, WeaponId } from './types';
 
 export const dayKey = (time = Date.now()) => {
   const date = new Date(time);
@@ -76,6 +76,8 @@ export function startRun(profile: Profile, dungeon: DungeonId, categoryId: strin
   const categoryItems = ITEMS.filter(item => item.categoryId === categoryId).map(item => item.id);
   const questionOrder = [...new Set([...(orderedIds || []).filter(id => categoryItems.includes(id)), ...categoryItems])];
   next.run = { id: `${now}-${Math.random().toString(36).slice(2, 8)}`, dungeon, categoryId, weapon, room: 0, phase: 'question', hp: BALANCE.hp, maxHp: BALANCE.hp, shield: 0, enemies: [], relics: {}, choices: [], rewardsLeft: 0, rewardedRooms: [], route: null, questionId: '', questionOrder, answers: {}, attemptsById: {}, attempts: 0, sequence: 0, history: [], failed: [], blocked: {}, reviewHealed: [], streak: 0, streakBonus: 0, charge: 0, roomShots: 0, bossPhase: 1, bossShield: false, recoveryDone: 0, recoverySeen: [], startedAt: now, correct: 0, answered: 0, reviews: 0, defeats: 0, scoreAtStart: profile.score, notice: '', lastResult: null, events: [] };
+  next.lastCategoryId = categoryId;
+  next.run.room = roomPlan(next.run)[0];
   enterRoom(next, now);
   return next;
 }
@@ -187,22 +189,13 @@ function attack(run: Run) {
   if (run.weapon === 'wand' && run.charge % 3 === 0) run.shield = Math.min(12, run.shield + 1);
 }
 
-export function submitAnswer(profile: Profile, input: StudyAnswer, expectedSequence: number, now = Date.now()): Profile {
+function gradeAnswer(profile: Profile, input: StudyAnswer, expectedSequence: number, now: number): Profile {
   if (!profile.run || profile.run.sequence !== expectedSequence || !hasStudyAnswer(input)) return profile;
-  let prepared = profile;
-  // Optional rewards never interrupt the existing Enter-to-answer learning flow.
-  for (let step = 0; step < 4; step++) {
-    const run = prepared.run!;
-    if (run.phase === 'reward') prepared = takeRelic(prepared, run.choices[0], now);
-    else if (run.phase === 'route') prepared = chooseRoute(prepared, 'elite', now);
-    else if (run.phase === 'rest') prepared = leaveRest(prepared, now);
-    else break;
-  }
-  const old = prepared.run!;
+  const old = profile.run;
   if (!['question', 'recovery'].includes(old.phase)) return profile;
   const item = itemById(old.questionId);
   if (!item) return profile;
-  const next = structuredClone(prepared);
+  const next = structuredClone(profile);
   const run = next.run!;
   const recovery = run.phase === 'recovery';
   const correct = isItemMatch(input, item);
@@ -275,9 +268,20 @@ export function submitAnswer(profile: Profile, input: StudyAnswer, expectedSeque
       run.notice = '두 번째 봉인! 기억으로 보스의 보호막을 해제하세요.';
     }
   }
-  if (!correct) run.phase = 'reveal';
-  else settleTurn(next, recovery, now);
+  settleTurn(next, recovery, now);
   return next;
+}
+
+export function submitTurn(profile: Profile, input: StudyAnswer, expectedSequence: number, now = Date.now()): { profile: Profile; presentation: Run | null } {
+  if (!profile.run || profile.run.sequence !== expectedSequence || !hasStudyAnswer(input)) return { profile, presentation: null };
+  const prepared = resolveAutomaticProgress(profile, now);
+  const graded = gradeAnswer(prepared, input, expectedSequence, now);
+  if (graded === prepared) return { profile, presentation: null };
+  return { profile: resolveAutomaticProgress(graded, now), presentation: graded.run };
+}
+
+export function submitAnswer(profile: Profile, input: StudyAnswer, expectedSequence: number, now = Date.now()): Profile {
+  return submitTurn(profile, input, expectedSequence, now).profile;
 }
 
 function settleTurn(profile: Profile, recovery: boolean, now: number) {
@@ -305,7 +309,7 @@ export function acknowledgeReveal(profile: Profile, now = Date.now()): Profile {
   const run = next.run!;
   settleTurn(next, run.recoveryDone > 0, now);
   run.events = [];
-  return next;
+  return resolveAutomaticProgress(next, now);
 }
 
 function advanceRoom(profile: Profile, now: number) {
@@ -320,7 +324,7 @@ function advanceRoom(profile: Profile, now: number) {
 export function takeRelic(profile: Profile, id: RelicId, now = Date.now()): Profile {
   const old = profile.run;
   const relic = RELICS.find(item => item.id === id);
-  if (!old || old.phase !== 'reward' || !old.choices.includes(id) || !relic || level(old, id) >= relic.max) return profile;
+  if (!old || old.phase !== 'reward' || old.rewardedRooms.includes(old.room) || !old.choices.includes(id) || !relic || level(old, id) >= relic.max) return profile;
   const next = structuredClone(profile);
   const run = next.run!;
   run.relics[id] = level(run, id) + 1;
@@ -350,6 +354,46 @@ export function leaveRest(profile: Profile, now = Date.now()): Profile {
   const next = structuredClone(profile);
   advanceRoom(next, now);
   return next;
+}
+
+export function resolveAutomaticProgress(profile: Profile, now = Date.now()): Profile {
+  let next = profile;
+  while (next.run && ['reward', 'route', 'rest', 'reveal'].includes(next.run.phase)) {
+    const run = next.run;
+    if (run.phase === 'reward') {
+      const id = run.choices.find(candidate => RELICS.some(relic => relic.id === candidate && level(run, candidate) < relic.max));
+      if (id && run.rewardsLeft > 0 && !run.rewardedRooms.includes(run.room)) next = takeRelic(next, id, now);
+      else {
+        next = structuredClone(next);
+        const advanced = next.run!;
+        advanced.rewardsLeft = 0;
+        if (!advanced.rewardedRooms.includes(advanced.room)) advanced.rewardedRooms.push(advanced.room);
+        advanceRoom(next, now);
+      }
+    } else if (run.phase === 'route') next = chooseRoute(next, 'elite', now);
+    else if (run.phase === 'rest') next = leaveRest(next, now);
+    else next = acknowledgeReveal(next, now);
+  }
+  return next;
+}
+
+export function runMetrics(before: Run | null, after: Run | null): Partial<DailyMetrics> {
+  if (!after) return {};
+  if (after.id !== before?.id) return { runsStarted: 1, roomsStarted: 1 };
+  const delta: Partial<DailyMetrics> = {};
+  if (after.sequence > before.sequence && after.lastResult) {
+    delta.submissions = after.sequence - before.sequence;
+    delta.correct = after.correct - before.correct;
+    delta.retries = before.attempts > 0 ? 1 : 0;
+    delta.reviewAttempts = after.lastResult.review ? 1 : 0;
+    delta.reviewCorrect = after.reviews - before.reviews;
+  }
+  const cleared = after.rewardedRooms.filter(room => !before.rewardedRooms.includes(room)).length;
+  const previouslyCountedReward = before.phase === 'reward' && !before.rewardedRooms.includes(before.room);
+  delta.roomsCleared = Math.max(0, cleared - (previouslyCountedReward ? 1 : 0));
+  delta.roomsStarted = Math.max(0, roomPlan(after).indexOf(after.room) - roomPlan(before).indexOf(before.room)) + (before.phase === 'route' && after.phase === 'question' ? 1 : 0);
+  delta.runsFinished = after.phase === 'victory' && before.phase !== 'victory' ? 1 : 0;
+  return delta;
 }
 
 export function restoreStudyRun(profile: Profile, now = Date.now()): void {

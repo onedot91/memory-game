@@ -12,6 +12,7 @@ export function loadProfile(): { profile: Profile; warning: string } {
     const value = JSON.parse(raw) as Profile;
     if (value.version !== 1 || !Number.isFinite(value.score) || value.score < 0 || !Number.isInteger(value.unlockedDungeon) || value.unlockedDungeon < 0 || value.unlockedDungeon > 2 || !value.memories || typeof value.memories !== 'object' || !Array.isArray(value.completed) || !Array.isArray(value.summaries)) throw new Error('Invalid profile');
     const defaults = freshProfile();
+    if (!CATEGORIES.some(category => category.id === value.lastCategoryId)) value.lastCategoryId = CATEGORIES[0].id;
     value.settings = {
       music: Number.isFinite(value.settings?.music) ? Math.max(0, Math.min(1, value.settings.music)) : defaults.settings.music,
       effects: Number.isFinite(value.settings?.effects) ? Math.max(0, Math.min(1, value.settings.effects)) : defaults.settings.effects,

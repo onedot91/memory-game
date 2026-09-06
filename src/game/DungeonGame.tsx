@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Download, Heart, Pause, Play, Settings2, Shield, Trophy, X, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, Check, Download, Heart, Pause, Play, Settings2, Shield, Trophy, X, Zap } from 'lucide-react';
 import Arena from './Arena';
 import DungeonStudy from './DungeonStudy';
+import StudyHeader, { type StudyModeProps } from '../StudyHeader';
 import { hasStudyAnswer, type StudyAnswer } from '../data';
-import { roomCanvas, spriteCanvas } from './art';
+import { spriteCanvas } from './art';
 import { BALANCE, CATEGORIES, DUNGEONS, RELICS, ROOM_NAMES, WEAPONS, dungeonById, weaponById } from './content';
-import { acknowledgeReveal, chooseRoute, dayKey, leaveRest, roomPlan, selectQuestion, startRun, submitAnswer, takeRelic } from './engine';
+import { dayKey, resolveAutomaticProgress, roomPlan, runMetrics, selectQuestion, startRun, submitTurn } from './engine';
 import { exportFile, exportMetrics, loadProfile, PROFILE_KEY, readMetrics, recordMetrics, saveProfile, studyOrder } from './storage';
 import { dungeonSound } from './sound';
-import type { DailyMetrics, DungeonId, Profile, WeaponId } from './types';
+import type { DailyMetrics, Profile, Run } from './types';
 import { useActivity } from './useActivity';
 
 function Pixel({ kind, index = 0, theme = 0, className = '' }: { kind: 'hero' | 'enemy' | 'boss' | 'weapon' | 'relic'; index?: number; theme?: number; className?: string }) {
@@ -20,14 +21,6 @@ function Pixel({ kind, index = 0, theme = 0, className = '' }: { kind: 'hero' | 
     if (ctx && canvas.current) { canvas.current.width = art.width; canvas.current.height = art.height; ctx.drawImage(art, 0, 0); }
   }, [kind, index, theme]);
   return <canvas ref={canvas} className={`pixel-art ${className}`} aria-hidden="true" />;
-}
-function RoomPreview({ theme }: { theme: number }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const ctx = canvas.current?.getContext('2d');
-    if (ctx) { ctx.drawImage(roomCanvas(theme, theme), 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(spriteCanvas('hero', 0), 155, 175, 60, 80); ctx.drawImage(spriteCanvas('boss', 0, theme), 374, 140, 115, 115); }
-  }, [theme]);
-  return <canvas width={640} height={360} ref={canvas} className="room-preview" aria-hidden="true" />;
 }
 function Dialog({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   const root = useRef<HTMLDivElement>(null);
@@ -54,29 +47,30 @@ function Dialog({ title, children, onClose }: { title: string; children: ReactNo
 }
 const formatTime = (seconds: number) => `${Math.floor(seconds / 60)}분 ${Math.floor(seconds % 60)}초`;
 
-export default function DungeonGame() {
+export default function DungeonGame({ onModeChange }: StudyModeProps) {
   const [loaded] = useState(loadProfile);
   const [profile, setProfile] = useState<Profile>(loaded.profile);
   const current = useRef(profile);
   const [warning, setWarning] = useState(loaded.warning);
   const [blockedSave, setBlockedSave] = useState(Boolean(loaded.warning));
   const [metricsWarning, setMetricsWarning] = useState(false);
-  const [screen, setScreen] = useState<'hub' | 'prepare' | 'run'>('hub');
-  const [panel, setPanel] = useState<'settings' | 'codex' | 'stats' | 'exit' | null>(null);
+  const [screen, setScreen] = useState<'hub' | 'run'>('hub');
+  const [panel, setPanel] = useState<'menu' | 'settings' | 'codex' | 'stats' | 'exit' | null>(null);
   const [paused, setPaused] = useState(false);
-  const [selectedDungeon, setSelectedDungeon] = useState<DungeonId>(() => loaded.profile.run && loaded.profile.run.phase !== 'victory' ? loaded.profile.run.dungeon : DUNGEONS[Math.floor(Math.random() * DUNGEONS.length)].id);
-  const [categoryId, setCategoryId] = useState(CATEGORIES[0].id);
-  const [weapon, setWeapon] = useState<WeaponId>(() => loaded.profile.run && loaded.profile.run.phase !== 'victory' ? loaded.profile.run.weapon : WEAPONS[Math.floor(Math.random() * WEAPONS.length)].id);
+  const [categoryId, setCategoryId] = useState(loaded.profile.run && loaded.profile.run.phase !== 'victory' ? loaded.profile.run.categoryId : loaded.profile.lastCategoryId || CATEGORIES[0].id);
+  const [presentation, setPresentation] = useState<Run | null>(null);
+  const [rewardNotice, setRewardNotice] = useState('');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
-  const lastRewardAt = useRef(0);
   const composing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const run = profile.run;
   const roomSteps = run ? roomPlan(run) : [0, 1, 2, 3, 4, 5];
   const roomPosition = Math.max(0, roomSteps.indexOf(run?.room || 0));
-  const dungeon = dungeonById(run?.dungeon || selectedDungeon);
+  const dungeon = dungeonById(run?.dungeon || DUNGEONS[0].id);
+  const displayedRun = presentation || run;
+  const activeRun = Boolean(run && run.phase !== 'victory');
   const theme = DUNGEONS.findIndex(d => d.id === dungeon.id);
   const stopped = paused || Boolean(panel) || screen !== 'run';
   useActivity('dungeon', screen === 'run' && Boolean(run && ['question', 'recovery', 'reveal', 'reward', 'route', 'rest'].includes(run.phase)) && !busy, paused || Boolean(panel));
@@ -85,21 +79,8 @@ export default function DungeonGame() {
   const commit = (next: Profile) => {
     const previous = current.current;
     if (next === previous) return;
-    const before = previous.run, after = next.run;
-    const delta: Partial<DailyMetrics> = {};
-    if (after && after.id !== before?.id) { delta.runsStarted = 1; delta.roomsStarted = 1; }
-    if (before && after && before.id === after.id) {
-      if (after.sequence > before.sequence && after.lastResult) {
-        delta.submissions = 1; delta.correct = after.correct - before.correct;
-        delta.retries = before.attempts > 0 ? 1 : 0;
-        delta.reviewAttempts = after.lastResult.review ? 1 : 0;
-        delta.reviewCorrect = after.reviews - before.reviews;
-      }
-      if (after.phase === 'reward' && (before.phase !== 'reward' || before.room !== after.room)) delta.roomsCleared = 1;
-      if (after.phase === 'victory' && before.phase !== 'victory') { delta.roomsCleared = 1; delta.runsFinished = 1; }
-      if (after.room !== before.room || (after.phase === 'question' && before.phase === 'route')) delta.roomsStarted = 1;
-    }
-    if (Object.keys(delta).length && !recordMetrics('dungeon', delta)) setMetricsWarning(true);
+    const delta = runMetrics(previous.run, next.run);
+    if (Object.values(delta).some(value => value > 0) && !recordMetrics('dungeon', delta)) setMetricsWarning(true);
     current.current = next;
     if (!blockedSave) setWarning(saveProfile(next));
     setProfile(next);
@@ -126,70 +107,91 @@ export default function DungeonGame() {
 
 
   useEffect(() => {
-    if (run?.phase !== 'reveal' || stopped) return;
-    const revealTimer = setTimeout(() => { commit(acknowledgeReveal(current.current)); }, BALANCE.turnMs);
-    return () => clearTimeout(revealTimer);
-  }, [run?.phase, stopped]);
+    if (!rewardNotice) return;
+    const noticeTimer = setTimeout(() => setRewardNotice(''), 2500);
+    return () => clearTimeout(noticeTimer);
+  }, [rewardNotice]);
 
   const submit = (event?: FormEvent, answer: StudyAnswer = input) => {
     event?.preventDefault();
     if (lock.current || stopped || composing.current || !hasStudyAnswer(answer)) return;
     const before = current.current;
     if (!before.run) return;
-    const next = submitAnswer(before, answer, before.run.sequence);
+    const turn = submitTurn(before, answer, before.run.sequence);
+    const next = turn.profile;
     if (next === before) return;
     lock.current = true; setBusy(true); setInput('');
+    setPresentation(turn.presentation);
+    const gained = RELICS.filter(relic => (next.run?.relics[relic.id] || 0) > (before.run?.relics[relic.id] || 0));
+    setRewardNotice(gained.map(relic => `${relic.name} +${(next.run?.relics[relic.id] || 0) - (before.run?.relics[relic.id] || 0)}`).join(' · '));
     commit(next); activateAudio();
     dungeonSound.effect(next.run?.lastResult?.outcome === 'correct' ? 'correct' : next.run?.lastResult?.outcome === 'wrong' ? 'wrong' : 'reveal');
-    timer.current = setTimeout(() => { lock.current = false; setBusy(false); timer.current = null; }, BALANCE.turnMs);
+    timer.current = setTimeout(() => { lock.current = false; setBusy(false); setPresentation(null); timer.current = null; }, BALANCE.turnMs);
   };
-  const resume = () => { setScreen('run'); setPaused(false); activateAudio(); };
-  const begin = () => { commit(startRun(current.current, selectedDungeon, categoryId, weapon, Date.now(), studyOrder(categoryId))); setInput(''); setScreen('run'); setPaused(false); activateAudio(); };
+  const resume = () => { commit(resolveAutomaticProgress(current.current)); setScreen('run'); setPaused(false); activateAudio(); };
+  const begin = () => {
+    if (lock.current || (current.current.run && current.current.run.phase !== 'victory')) return;
+    const world = DUNGEONS[Math.floor(Math.random() * DUNGEONS.length)];
+    const arm = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
+    commit(startRun(current.current, world.id, categoryId, arm.id, Date.now(), studyOrder(categoryId)));
+    setPresentation(null); setRewardNotice(''); setInput(''); setScreen('run'); setPaused(false); activateAudio();
+  };
   const exportProgress = () => {
     let original: string | null = null;
     try { original = blockedSave ? localStorage.getItem(PROFILE_KEY) : null; } catch { /* Export the in-memory profile when storage is inaccessible. */ }
     exportFile(`memory-dungeon-${dayKey()}.json`, original || JSON.stringify(current.current, null, 2), 'application/json');
   };
-  const randomizeLoadout = () => { setSelectedDungeon(DUNGEONS[Math.floor(Math.random() * DUNGEONS.length)].id); setWeapon(WEAPONS[Math.floor(Math.random() * WEAPONS.length)].id); };
-  const goHub = () => { if (!current.current.run || current.current.run.phase === 'victory') randomizeLoadout(); setScreen('hub'); setPanel(null); setPaused(false); setInput(''); dungeonSound.stop(); };
+  const goHub = () => { setScreen('hub'); setPanel(null); setPaused(false); setInput(''); dungeonSound.stop(); };
   const abandon = () => { commit({ ...current.current, run: null }); goHub(); };
 
-  return <div className="dungeon-app" data-motion={profile.settings.motion ? 'on' : 'off'}>
-    <header className="game-header">
-      <button className="game-brand" onClick={() => screen === 'run' ? setPanel('exit') : goHub()} aria-label="암기 던전 거점"><span className="brand-mark"><BookOpen size={23} /></span><span>암기<span className="brand-pink">던전</span></span></button>
-      
-      <nav className="header-tools" aria-label="게임 메뉴"><button onClick={() => setPanel('codex')}><BookOpen size={16} /> 도감</button><button onClick={() => setPanel('stats')}><Trophy size={16} /> 기록</button><button onClick={() => setPanel('settings')} aria-label="게임 설정"><Settings2 size={19} /></button></nav>
-    </header>
+  return <div className="dungeon-app learning-dungeon" data-motion={profile.settings.motion ? 'on' : 'off'}>
+    <StudyHeader mode="dungeon" onModeChange={onModeChange} onHome={goHub} actions={<>
+        {screen === 'run' && activeRun && <button onClick={() => setPaused(true)} aria-label="학습 일시정지"><Pause size={17} /> ESC</button>}
+        <button onClick={() => setPanel('menu')} aria-label="메뉴"><Settings2 size={19} /></button>
+    </>} />
     {(warning || metricsWarning) && <div className="save-warning" role="alert"><span>{warning || '사용 지표를 저장하지 못했습니다. 학습은 계속할 수 있습니다.'}</span><button onClick={exportProgress}>기록 내보내기</button>{blockedSave && <button onClick={() => { setBlockedSave(false); setWarning(saveProfile(current.current)); }}>새 기록 시작</button>}</div>}
     <div className="desktop-notice">던전은 PC에 맞춰 제작됐습니다. 작은 화면에서는 상단의 기본 암기 모드를 이용해 주세요.</div>
 
-    {(screen === 'hub' || screen === 'prepare') && <main className="compact-hub">
-      <div className="setup-topline"><label htmlFor="category-select">학습</label><select id="category-select" value={categoryId} onChange={e => setCategoryId(e.target.value)}>{CATEGORIES.map(category => <option value={category.id} key={category.id}>{category.group === 'history' ? category.category : `${category.group === 'civil' ? '공무원' : '숫자'} · ${category.category}`}</option>)}</select></div>
-      <div className="dungeon-cards">{DUNGEONS.map((world, index) => <button key={world.id} className={`dungeon-card world-${index} ${selectedDungeon === world.id ? 'chosen' : ''}`} onClick={() => setSelectedDungeon(world.id)} aria-pressed={selectedDungeon === world.id} title={world.title}>
-        <div className="dungeon-cover"><RoomPreview theme={index} /></div>
-        <div className="dungeon-card-info"><h2>{world.title}{selectedDungeon === world.id ? <Check size={18} /> : <ChevronRight size={18} />}</h2>{profile.completed.includes(world.id) && <span className="cleared-mark">완료</span>}</div>
-      </button>)}</div>
-      <section className="compact-weapons" aria-label="무기 선택"><div className="weapon-heading"><h2>무기</h2><span>{profile.score} 기억</span></div><div className="compact-weapon-list">{WEAPONS.map((arm, index) => <button key={arm.id} className={weapon === arm.id ? 'active' : ''} onClick={() => setWeapon(arm.id)} title={arm.description} aria-pressed={weapon === arm.id}><Pixel kind="weapon" index={index} /><span>{arm.name}</span></button>)}</div><p className="selected-weapon-detail">{weaponById(weapon).description}</p></section>
-      <div className="compact-start">{run && run.phase !== 'victory' ? <><span>{dungeonById(run.dungeon).title} · {roomPosition + 1}/{roomSteps.length} 구간</span><button className="text-button" onClick={() => setPanel('exit')}>원정 끝내기</button><button className="game-button primary" onClick={resume}>이어서<Play size={17} /></button></> : <button className="game-button primary" onClick={begin}>시작<ArrowRight size={19} /></button>}</div>
+    {screen === 'hub' && <main className="study-start">
+      <form onSubmit={event => { event.preventDefault(); if (activeRun) resume(); else begin(); }}>
+        <div className="setup-topline"><label htmlFor="category-select">학습</label><select id="category-select" aria-label="학습" disabled={activeRun} value={activeRun ? run!.categoryId : categoryId} onChange={event => { setCategoryId(event.target.value); commit({ ...current.current, lastCategoryId: event.target.value }); }}>{CATEGORIES.map(category => <option value={category.id} key={category.id}>{category.group === 'history' ? category.category : `${category.group === 'civil' ? '공무원' : '숫자'} · ${category.category}`}</option>)}</select></div>
+        <button className="game-button primary" type="submit">{activeRun ? '이어서' : '시작'}<ArrowRight size={19} /></button>
+      </form>
     </main>}
 
-    {screen === 'run' && run && <main className="run-main">
-      <div className="run-heading"><div><h1>{dungeon.title}<span>{roomPosition + 1} / {roomSteps.length}</span></h1></div><div className="run-top-actions"><button className="text-button" onClick={() => setPanel('exit')}><ArrowLeft size={16} /> 거점</button><button className="game-button small" onClick={() => setPaused(true)} aria-label="원정 일시정지"><Pause size={17} /> ESC</button></div></div>
-      <div className="run-layout"><div className="battle-column"><div className="battle-hud"><div className="health-block"><Heart size={20} fill="currentColor" /><div className="hp-pips" aria-label={`체력 ${run.hp} / ${run.maxHp}`}>{Array.from({ length: run.maxHp }, (_, i) => <i key={i} className={i < run.hp ? 'filled' : ''} />)}</div><b>{run.hp}/{run.maxHp}</b><span className="shield-count"><Shield size={17} />{run.shield}</span></div><div className="streak-badge"><Zap size={17} />연속 {run.streak}</div></div>
-        <Arena run={run} roomNumber={roomPosition + 1} paused={stopped} motion={profile.settings.motion} />
-        <div className={`answer-panel ${run.lastResult?.outcome === 'wrong' ? 'answer-warning' : ''}`}>
-          <div className="answer-caption"><span>{run.phase === 'recovery' ? '회복 중' : run.bossShield ? '봉인 해제' : ''}</span></div>
-          <DungeonStudy run={run} value={input} busy={busy} paused={stopped} onChange={setInput} onSubmit={submit} onSubmitTimeline={answer => submit(undefined, answer)} onComposition={value => { composing.current = value; }} onPick={id => { if (!lock.current) { commit(selectQuestion(current.current, id)); setInput(''); } }} />
-          {run.phase === 'rest' && <div className="study-intermission"><span>체력 +4</span><button className="game-button primary small" onClick={() => commit(leaveRest(current.current))}>계속<ArrowRight size={15} /></button></div>}
-
-          <p className={`battle-notice notice-${run.lastResult?.outcome || 'idle'}`} role="status" aria-live="polite">{busy ? '공격 중…' : run.phase === 'question' || run.phase === 'recovery' ? run.lastResult?.outcome === 'wrong' ? '오답 · 다시 입력하세요.' : run.lastResult?.outcome === 'correct' ? run.lastResult.review ? '복습 성공' : '정답' : '' : ''}</p>
+    {screen === 'run' && run && displayedRun && <main className="learning-main">
+      <div className="learning-layout">
+        <div className="learning-column">
+          {run.phase === 'victory' && !busy ? <section className="learning-result" aria-label="학습 결과">
+            <h1>학습 완료</h1>
+            <p>{CATEGORIES.find(category => category.id === run.categoryId)?.category}</p>
+            <div className="result-stats"><div><b>{Object.keys(run.answers).length}</b><span>풀이 수</span></div><div><b>{run.correct}</b><span>자력 정답</span></div><div><b>{run.reviews}</b><span>복습 성공</span></div></div>
+            <div className="result-actions"><button className="game-button primary" onClick={begin}>한 번 더<ArrowRight size={18} /></button><button className="text-button" onClick={goHub}>쉬기</button></div>
+          </section> : <section className="learning-answers" aria-label="학습 목록">
+            <DungeonStudy run={run} value={input} busy={busy} paused={stopped} onChange={setInput} onSubmit={submit} onSubmitTimeline={answer => submit(undefined, answer)} onComposition={value => { composing.current = value; }} onPick={id => { if (!lock.current) { commit(selectQuestion(current.current, id)); setInput(''); } }} />
+            <p className={`battle-notice notice-${run.lastResult?.outcome || 'idle'}`} role="status">{run.lastResult?.outcome === 'wrong' ? '1차 오답 · 다시 입력하세요.' : run.phase === 'recovery' ? '복습하며 회복 중' : ''}</p>
+          </section>}
         </div>
-      </div><aside className="run-sidebar">
-        <section className="path-panel"><div className="room-track" aria-label={`${roomSteps.length}구간 중 ${roomPosition + 1}구간`}>{roomSteps.map((index, position) => <div className={`${index === run.room ? 'current' : index < run.room ? 'done' : ''}`} key={index} title={ROOM_NAMES[index]}>{index < run.room ? <Check size={15} /> : index === 5 ? <Trophy size={15} /> : position + 1}</div>)}</div></section>
-        {run.phase === 'reward' ? <section className="choice-panel"><h2 title="고르지 않고 정답을 제출하면 첫 강화를 자동 선택합니다.">강화 <small className="optional-choice">선택 사항</small> {run.rewardsLeft > 1 ? `· ${run.rewardsLeft}개` : ''}</h2><div className="relic-choices">{run.choices.map(id => { const relic = RELICS.find(r => r.id === id)!; const index = RELICS.indexOf(relic); return <button key={id} disabled={busy || stopped} onClick={() => { if (Date.now() - lastRewardAt.current < 300) return; lastRewardAt.current = Date.now(); commit(takeRelic(current.current, id)); activateAudio(); dungeonSound.effect('choice'); }}><Pixel kind="relic" index={index} /><span><em>{relic.type} · {(run.relics[id] || 0) + 1}/{relic.max}</em><b>{relic.name}</b><small>{relic.description}</small></span><ChevronRight size={16} /></button>; })}</div></section> : run.phase === 'route' ? <section className="choice-panel"><h2>다음 방</h2><button className="route-option" onClick={() => { commit(chooseRoute(current.current, 'elite')); activateAudio(); }}><Zap size={24} /><b>정예의 방</b><span>유물 2개</span><ArrowRight size={20} /></button><button className="route-option rest" onClick={() => commit(chooseRoute(current.current, 'rest'))}><Heart size={24} /><b>휴식</b><span>체력 +4</span><ArrowRight size={20} /></button></section> : run.phase === 'victory' ? <section className="choice-panel result-panel"><h2>원정 완료</h2><div className="result-stats"><div><b>{Object.keys(run.answers).length}</b><span>문항</span></div><div><b>{run.correct}</b><span>자력 정답</span></div><div><b>{run.reviews}</b><span>복습 성공</span></div><div><b>+{profile.score - run.scoreAtStart}</b><span>기억</span></div></div><p>원정 시간 {formatTime(profile.summaries[0]?.seconds || 0)}</p><button className="game-button primary" onClick={() => { commit({ ...current.current, run: null }); randomizeLoadout(); setScreen('prepare'); }}>다음 원정<ArrowRight size={18} /></button><button className="text-button" onClick={goHub}>저장 후 쉬기</button></section> : <section className="enemy-panel"><h2>{run.phase === 'recovery' ? '회복 중' : '적'}</h2>{run.phase === 'recovery' ? <p>남은 문항을 풀면서 체력을 회복합니다.</p> : run.enemies.map(enemy => <div className={`enemy-row ${enemy.hp <= 0 ? 'defeated' : ''}`} key={enemy.id}><Pixel kind={enemy.boss ? 'boss' : 'enemy'} index={theme * 3 + enemy.kind} theme={theme} /><div><b>{enemy.name}</b><small>{enemy.hp <= 0 ? '처치 완료' : `${enemy.hp}/${enemy.maxHp} HP${enemy.armor ? ` · 갑옷 ${enemy.armor}` : ''}`}</small>{enemy.boss && <span>{run.bossShield ? '봉인 활성' : `패턴 ${run.bossPhase}`}</span>}</div></div>)}</section>}
-        <section className="loadout-panel"><div className="loadout-weapon"><Pixel kind="weapon" index={WEAPONS.findIndex(w => w.id === run.weapon)} /><div><b>{weaponById(run.weapon).name}</b><small>{weaponById(run.weapon).description}</small></div></div><div className="equipped-relics">{Object.entries(run.relics).length ? Object.entries(run.relics).map(([id, count]) => { const index = RELICS.findIndex(r => r.id === id); return <span key={id} title={`${RELICS[index].name} ${count}단계: ${RELICS[index].description}`}><Pixel kind="relic" index={index} /><b>{count}</b><span className="sr-only">{RELICS[index].name} {count}단계</span></span>; }) : <p>유물 없음</p>}</div></section>
-      </aside></div>
+        <aside className="learning-game" aria-label="학습 보조 전투">
+          <div className="mini-game-heading"><h2>{dungeon.title}</h2><span>{roomPosition + 1} / {roomSteps.length}</span></div>
+          <Arena run={displayedRun} roomNumber={Math.max(0, roomSteps.indexOf(displayedRun.room)) + 1} paused={stopped} motion={profile.settings.motion} />
+          <div className="battle-hud"><div className="health-block"><Heart size={16} fill="currentColor" /><b aria-label={`체력 ${run.hp} / ${run.maxHp}`}>{run.hp}/{run.maxHp}</b><span className="shield-count"><Shield size={15} />{run.shield}</span></div><div className="streak-badge"><Zap size={14} />{run.streak}</div></div>
+          <div className="room-track" aria-label={`${roomSteps.length}구간 중 ${roomPosition + 1}구간`}>{roomSteps.map((index, position) => <div className={`${index === run.room ? 'current' : index < run.room ? 'done' : ''}`} key={index} title={ROOM_NAMES[index]}>{index < run.room ? <Check size={13} /> : index === 5 ? <Trophy size={13} /> : position + 1}</div>)}</div>
+          <div className="mini-loadout"><div className="loadout-weapon"><Pixel kind="weapon" index={WEAPONS.findIndex(arm => arm.id === run.weapon)} /><b>{weaponById(run.weapon).name}</b></div>
+            <div className="equipped-relics">{Object.entries(run.relics).map(([id, count]) => { const index = RELICS.findIndex(relic => relic.id === id); return <span key={id} title={`${RELICS[index].name} ${count}단계: ${RELICS[index].description}`}><Pixel kind="relic" index={index} /><b>{count}</b><span className="sr-only">{RELICS[index].name} {count}단계</span></span>; })}</div>
+          </div>
+          <p className="auto-reward-notice" role="status" title={rewardNotice}>{rewardNotice}</p>
+        </aside>
+      </div>
     </main>}
+
+    {panel === 'menu' && <Dialog title="메뉴" onClose={() => setPanel(null)}><div className="study-menu">
+      <button onClick={() => setPanel('stats')}><Trophy size={17} />학습 기록</button>
+      <button onClick={() => setPanel('codex')}><BookOpen size={17} />도감</button>
+      <button onClick={() => setPanel('settings')}><Settings2 size={17} />음향·화면 설정</button>
+      {screen === 'run' && <button onClick={goHub}><ArrowLeft size={17} />저장 후 시작 화면</button>}
+      {activeRun && <button onClick={() => setPanel('exit')}><X size={17} />원정 종료</button>}
+    </div></Dialog>}
 
 
 
